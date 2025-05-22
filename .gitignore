@@ -1,0 +1,80 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Environments
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+*.wheel
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# PyInstaller
+*.spec
+*.manifest
+
+# Coverage & testing
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+htmlcov/
+
+# Jupyter & IPython
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# Editors & IDEs
+.idea/
+.vscode/
+
+# Telethon sessions
+*.session
+app/telegram/sessions/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Docs
+docs/_build/
+
+# Build tools
+target/
+.pybuilder/
+cython_debug/
+
+# Logs & misc
+*.log
+*.prof
