@@ -60,7 +60,7 @@ async def fetch_messages(client, channel_username: str, limit: int = LIMIT) -> l
         print(f"❌ Канал {channel_username} не найден.")
         return []
     except Exception as e:
-        print(f"❌ Ошибка при получении сообщений: {e}")
+        print(f"❌ Ошибка при получении сообщений из канала {channel_username}: {e}")
         return []
 
 
@@ -81,12 +81,14 @@ def save_batch_to_db(messages, channel):
         conn.commit()
         if cur.rowcount < len(messages):
             print(
-                f"⚠️ Некоторые сообщения не сохранены (возможно, дубликаты message_id). Сохранено: {cur.rowcount}/{len(messages)}"
+                f"⚠️ Некоторые сообщения из канала {channel} не сохранены (возможно, дубликаты message_id). Сохранено: {cur.rowcount}/{len(messages)}"
             )
         else:
-            print(f"✅ Сохранено {cur.rowcount} сообщений в PostgreSQL")
+            print(
+                f"✅ Сохранено {cur.rowcount} сообщений из канала {channel} в PostgreSQL"
+            )
     except Exception as e:
-        print(f"❌ Ошибка при сохранении в PostgreSQL: {e}")
+        print(f"❌ Ошибка при сохранении в PostgreSQL для канала {channel}: {e}")
     finally:
         cur.close()
         conn.close()
@@ -111,9 +113,11 @@ def save_single_to_db(message, channel):
         cur.execute(query, data)
         conn.commit()
         if cur.rowcount > 0:
-            print(f"📩 Новое сообщение сохранено в PostgreSQL: {message['id']}")
+            print(
+                f"📩 Новое сообщение из канала {channel} сохранено в PostgreSQL: {message['id']}"
+            )
     except Exception as e:
-        print(f"❌ Ошибка при сохранении нового сообщения: {e}")
+        print(f"❌ Ошибка при сохранении нового сообщения из канала {channel}: {e}")
     finally:
         cur.close()
         conn.close()
@@ -134,55 +138,80 @@ async def main():
         me = await client.get_me()
         print(f"👤 Ваш Telegram: {me.username or me.first_name}")
 
-        channel = input(
-            "Название канала (e.g. @binance или ссылка на приватный канал): "
+        # Список каналов (можно также загружать из файла или переменной окружения)
+        channels_input = input(
+            "Введите список каналов через запятую (e.g. @binance,joe_speen_youtube): "
         )
+        channels = [
+            channel.strip() for channel in channels_input.split(",") if channel.strip()
+        ]
+        if not channels:
+            print("❌ Не указаны каналы для обработки.")
+            return
+
         limit = input(
-            f"Количество сообщений для начального парсинга ({LIMIT} по умолчанию): "
+            f"Количество сообщений для начального парсинга на канал ({LIMIT} по умолчанию): "
         )
         limit = int(limit) if limit else LIMIT
 
-        print(f"⏳ Парсим {limit} прошлых сообщений...")
-        messages = await fetch_messages(client, channel, limit)
-        if messages:
-            save_batch_to_db(messages, channel)
-        print(f"✅ Спарсено и сохранено {len(messages)} прошлых сообщений")
-
-        try:
-            entity = await client.get_entity(channel)
-
-            @client.on(events.NewMessage(chats=entity))
-            async def handle_new_message(event):
-                if not event.message.message:
-                    return
-                author = None
-                if event.message.sender:
-                    if isinstance(event.message.sender, User):
-                        author = (
-                            event.message.sender.username
-                            or event.message.sender.first_name
-                            or None
-                        )
-                    elif isinstance(event.message.sender, Channel):
-                        author = event.message.sender.title or None
-                new_message = {
-                    "id": event.message.id,
-                    "text": event.message.message,
-                    "date": event.message.date.astimezone(tz=TZ).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                    "author": author,
-                }
-                save_single_to_db(new_message, channel)
-
-            print(f"🔔 Ожидание новых сообщений в канале {channel}...")
-            await client.run_until_disconnected()
-        except ChannelPrivateError:
+        # Парсинг прошлых сообщений для всех каналов
+        for channel in channels:
+            print(f"⏳ Парсим {limit} прошлых сообщений из канала {channel}...")
+            messages = await fetch_messages(client, channel, limit)
+            if messages:
+                save_batch_to_db(messages, channel)
             print(
-                f"❌ Не могу подписаться на канал {channel}: он приватный, и вы не являетесь участником."
+                f"✅ Спарсено и сохранено {len(messages)} прошлых сообщений из канала {channel}"
             )
+
+        # Подписка на новые сообщения для всех каналов
+        try:
+            entities = []
+            for channel in channels:
+                try:
+                    entity = await client.get_entity(channel)
+                    entities.append((channel, entity))
+                except ChannelPrivateError:
+                    print(
+                        f"❌ Не могу подписаться на канал {channel}: он приватный, и вы не являетесь участником."
+                    )
+                except ChannelInvalidError:
+                    print(f"❌ Канал {channel} не найден.")
+                except Exception as e:
+                    print(f"❌ Ошибка при получении сущности канала {channel}: {e}")
+
+            for channel, entity in entities:
+
+                @client.on(events.NewMessage(chats=entity))
+                async def handle_new_message(
+                    event, ch=channel
+                ):  # Передаем channel через замыкание
+                    if not event.message.message:
+                        return
+                    author = None
+                    if event.message.sender:
+                        if isinstance(event.message.sender, User):
+                            author = (
+                                event.message.sender.username
+                                or event.message.sender.first_name
+                                or None
+                            )
+                        elif isinstance(event.message.sender, Channel):
+                            author = event.message.sender.title or None
+                    new_message = {
+                        "id": event.message.id,
+                        "text": event.message.message,
+                        "date": event.message.date.astimezone(tz=TZ).strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        ),
+                        "author": author,
+                    }
+                    save_single_to_db(new_message, ch)
+
+            print(f"🔔 Ожидание новых сообщений в каналах: {', '.join(channels)}...")
+            await client.run_until_disconnected()
         except Exception as e:
-            print(f"❌ Ошибка при подписке на канал: {e}")
+            print(f"❌ Ошибка при подписке на каналы: {e}")
 
 
 if __name__ == "__main__":
