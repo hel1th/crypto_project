@@ -13,18 +13,18 @@ from telethon.errors import ChannelInvalidError, ChannelPrivateError
 from telethon import events
 from telethon.tl.types import User, Channel
 
-# Configure logging
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("telegram.log"),  # Log to a file
-        logging.StreamHandler(),  # Also log to console
+        logging.FileHandler("telegram.log"),
+        logging.StreamHandler(),
     ],
 )
 logger = logging.getLogger(__name__)
 
-# Ensure telethon logs are captured
+
 logging.getLogger("telethon").setLevel(logging.INFO)
 
 
@@ -43,24 +43,22 @@ async def fetch_messages(client, channel_username: str, limit: int = LIMIT) -> l
                     author = msg.sender.title or None
             messages.append(
                 {
-                    "id": msg.id,
+                    "channel_id": str(entity.id),
                     "text": msg.message,
-                    "channel": channel_username,
                     "date": msg.date.astimezone(tz=TZ).strftime("%Y-%m-%d %H:%M:%S"),
                     "author": author,
+                    "message_id": msg.id,
                 }
             )
         return messages
     except ChannelPrivateError:
-        print(
-            f"❌ Канал {channel_username} является приватным, и вы не являетесь участником."
-        )
+        print(f"❌ Канал {channel_username} является приватным.")
         return []
     except ChannelInvalidError:
         print(f"❌ Канал {channel_username} не найден.")
         return []
     except Exception as e:
-        print(f"❌ Ошибка при получении сообщений из канала {channel_username}: {e}")
+        print(f"❌ Ошибка при получении сообщений из {channel_username}: {e}")
         return []
 
 
@@ -68,54 +66,54 @@ def save_batch_to_db(messages, channel):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
-        query = """
-            INSERT INTO telegram_messages (message_id, text, channel, date, author)
+        query = f"""
+            INSERT INTO {TABLE} (channel_id, text, date, author, message_id)
             VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (message_id) DO NOTHING
+            ON CONFLICT (channel_id, message_id) DO NOTHING
         """
         data = [
-            (msg["id"], msg["text"], msg["channel"], msg["date"], msg["author"])
+            (
+                msg["channel_id"],
+                msg["text"],
+                msg["date"],
+                msg["author"],
+                msg["message_id"],
+            )
             for msg in messages
         ]
         cur.executemany(query, data)
         conn.commit()
         if cur.rowcount < len(messages):
-            print(
-                f"⚠️ Некоторые сообщения из канала {channel} не сохранены (возможно, дубликаты message_id). Сохранено: {cur.rowcount}/{len(messages)}"
-            )
+            print(f"⚠️ Часть сообщений из канала {channel} не сохранена (дубликаты?).")
         else:
-            print(
-                f"✅ Сохранено {cur.rowcount} сообщений из канала {channel} в PostgreSQL"
-            )
+            print(f"✅ Сохранено {cur.rowcount} сообщений из канала {channel}")
     except Exception as e:
-        print(f"❌ Ошибка при сохранении в PostgreSQL для канала {channel}: {e}")
+        print(f"❌ Ошибка при сохранении в БД (канал {channel}): {e}")
     finally:
         cur.close()
         conn.close()
 
 
-def save_single_to_db(message, channel):
+def save_single_to_db(msg, channel):
     try:
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
         query = """
-            INSERT INTO telegram_messages (message_id, text, channel, date, author)
+            INSERT INTO tg_messages (author, text, date, channel_id, message_id)
             VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (message_id) DO NOTHING
+            ON CONFLICT (channel_id, message_id) DO NOTHING
         """
         data = (
-            message["id"],
-            message["text"],
-            channel,
-            message["date"],
-            message["author"],
+            msg["author"],
+            msg["text"],
+            msg["date"],
+            msg["channel_id"],
+            msg["message_id"],
         )
         cur.execute(query, data)
         conn.commit()
         if cur.rowcount > 0:
-            print(
-                f"📩 Новое сообщение из канала {channel} сохранено в PostgreSQL: {message['id']}"
-            )
+            print(f"📩 Новое сообщение сохранено (канал: {channel})")
     except Exception as e:
         print(f"❌ Ошибка при сохранении нового сообщения из канала {channel}: {e}")
     finally:
@@ -124,7 +122,6 @@ def save_single_to_db(message, channel):
 
 
 async def main():
-    # Проверка существования файла сессии
     session_file = f"{TG_SESSION_PATH}.session"
     if not os.path.exists(session_file):
         print(
@@ -134,11 +131,10 @@ async def main():
 
     client = await check_auth()
 
-    async with client:  # Keep the client connected for the entire operation
+    async with client:
         me = await client.get_me()
         print(f"👤 Ваш Telegram: {me.username or me.first_name}")
 
-        # Список каналов (можно также загружать из файла или переменной окружения)
         channels_input = input(
             "Введите список каналов через запятую (e.g. @binance,joe_speen_youtube): "
         )
@@ -154,7 +150,6 @@ async def main():
         )
         limit = int(limit) if limit else LIMIT
 
-        # Парсинг прошлых сообщений для всех каналов
         for channel in channels:
             print(f"⏳ Парсим {limit} прошлых сообщений из канала {channel}...")
             messages = await fetch_messages(client, channel, limit)
@@ -164,7 +159,6 @@ async def main():
                 f"✅ Спарсено и сохранено {len(messages)} прошлых сообщений из канала {channel}"
             )
 
-        # Подписка на новые сообщения для всех каналов
         try:
             entities = []
             for channel in channels:
@@ -183,11 +177,13 @@ async def main():
             for channel, entity in entities:
 
                 @client.on(events.NewMessage(chats=entity))
-                async def handle_new_message(
-                    event, ch=channel
-                ):  # Передаем channel через замыкание
+                async def handle_new_message(event, ch=channel):
                     if not event.message.message:
                         return
+
+                    if not isinstance(event.chat, Channel):
+                        return
+
                     author = None
                     if event.message.sender:
                         if isinstance(event.message.sender, User):
@@ -198,14 +194,17 @@ async def main():
                             )
                         elif isinstance(event.message.sender, Channel):
                             author = event.message.sender.title or None
+
                     new_message = {
-                        "id": event.message.id,
+                        "author": author,
                         "text": event.message.message,
                         "date": event.message.date.astimezone(tz=TZ).strftime(
                             "%Y-%m-%d %H:%M:%S"
                         ),
-                        "author": author,
+                        "channel_id": str(event.chat.id),
+                        "message_id": event.message.id,
                     }
+
                     save_single_to_db(new_message, ch)
 
             print(f"🔔 Ожидание новых сообщений в каналах: {', '.join(channels)}...")
@@ -215,6 +214,7 @@ async def main():
 
 
 if __name__ == "__main__":
+    TABLE = "tg_messages"
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

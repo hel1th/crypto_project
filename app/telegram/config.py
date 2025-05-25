@@ -23,15 +23,7 @@ SESSIONS_DIR = os.path.join(BASE_DIR, "sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 TG_SESSION_PATH = os.path.join(SESSIONS_DIR, TG_SESSION_NAME)
 
-# PostgreSQL settings
-# Ensure these values are correct and the telegram_messages table exists with the schema:
-# CREATE TABLE telegram_messages (
-#     message_id BIGINT PRIMARY KEY,
-#     text TEXT,
-#     channel TEXT,
-#     date TEXT,
-#     author TEXT
-# );
+
 DB_CONFIG = {
     "dbname": os.getenv("DB_NAME"),
     "user": os.getenv("DB_USER"),
