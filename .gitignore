@@ -12,6 +12,8 @@ __pycache__/
 !.env.example
 .venv/
 venv/
+crypro_env/
+crypto_env
 env/
 ENV/
 
@@ -78,3 +80,4 @@ cython_debug/
 # Logs & misc
 *.log
 *.prof
+crypto_data
