@@ -14,13 +14,14 @@ API_KEY_LLM = os.getenv('API_KEY_LLM')
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-def llm_parse(list_of_texts: list) -> None:
+def llm_parse(dict_of_messages: dict) -> None:
     
-    json_list = []
+    json_dict = []
     
     client = gigachat.GigaChat(credentials=API_KEY_LLM, verify_ssl_certs=False)
     
-    for text in list_of_texts:     
+    for text, time in dict_of_messages.items():    
+         
         prompt = f"""Parse message {text}, forming a dict message_data = 'coin': str without #, 'timeframe': str, \
             'signal_type': str, 'entry_prices': list, 'take_profit_targets': list, 'stop_loss': (float, int), 'leverage': int,\
             'margin_mode': str, channel: str. Return only dict as a variable message_parse. Do not add no spare symbols\
@@ -44,7 +45,7 @@ def llm_parse(list_of_texts: list) -> None:
             dict_str = dict_str.replace("```python", "").replace("```", "").strip()
             
             message_data = literal_eval(dict_str)
-            json_list.append(message_data)
+            json_dict[time] = message_data
             
         except SyntaxError:
             print(f"SyntaxError: LLM returned invalid dictionary format. Raw response: {response_content}")
@@ -53,6 +54,6 @@ def llm_parse(list_of_texts: list) -> None:
             print(f"Unexpected error: {str(e)}")
             return None
             
-    with open("message_data.json", "w", encoding='UTF-8') as json_file:
-        json.dump(json_list, json_file, ensure_ascii=True, indent=4)
+    with open("messages_data.json", "w", encoding='UTF-8') as json_file:
+        json.dump(json_dict, json_file, ensure_ascii=True, indent=4)
             
