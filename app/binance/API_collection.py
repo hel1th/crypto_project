@@ -65,7 +65,7 @@ class CryptoDataVisualizer:
         for i, symbol in enumerate(popular_symbols, 1):
             print(f"{i}. {symbol}")
 
-        print("\nВведите номера пар через пробел (например '1 2 3' для BTC, ETH, BNB)")
+        print("\nВведите номера пар через пробел (например '1 2 3' или BTC ETH BNB)")
 
         while True:
             user_input = input("Ваш выбор: ").strip()
@@ -76,6 +76,13 @@ class CryptoDataVisualizer:
                     idx = int(num) - 1
                     if 0 <= idx < len(popular_symbols):
                         selected.add(popular_symbols[idx])
+                if selected:
+                    return tuple(selected)
+            elif all(c.isalpha() for c in user_input.split()):
+                selected = set()
+                for coin in user_input.split():
+                    coin += "USDT"
+                    selected.add(coin)
                 if selected:
                     return tuple(selected)
 
