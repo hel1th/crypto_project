@@ -12,6 +12,7 @@ __pycache__/
 !.env.example
 .venv/
 venv/
+crypto_env/
 env/
 ENV/
 
