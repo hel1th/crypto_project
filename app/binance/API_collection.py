@@ -3,6 +3,7 @@ import time
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
+import pytz
 import requests
 import schedule
 import seaborn as sns
@@ -18,13 +19,13 @@ class CryptoDataVisualizer:
         self,
         symbols=None,
         interval=None,
-        data_dir="crypto_data",  # директория тоже не меняется
+        data_dir="app/binance/crypto_data",
     ):
         self.symbols = self._select_symbols() if symbols is None else symbols
         self.data_dir = data_dir
         self.plot_dir = os.path.join(data_dir, "plots")
 
-        self.valid_intervals = ["1s", "10s", "1m", "1h"]  # лучше делать через tuple
+        self.valid_intervals = ("1s", "1m", "1h")
         if interval is None:
             print(f"Доступные интервалы: {', '.join(self.valid_intervals)}")
             while True:
@@ -34,18 +35,21 @@ class CryptoDataVisualizer:
                     break
                 if interval in self.valid_intervals:
                     break
-                print(
-                    f"Неверный интервал. Доступные варианты: {', '.join(self.valid_intervals)}"
-                )
+                print(f"Неверный интервал. Доступные варианты: {', '.join(self.valid_intervals)}")
 
         self.interval = interval
-        self.initial_period = timedelta(days=365)  # опять нельзя поменять этот период
+        past_period = input("Укажите период, за который нажно отобразить статистику, в днях (только число): ")
+        if past_period.isdigit:
+                self.initial_period = timedelta(days=int(past_period))
+        else:
+            print("Неверный период, автоматически установлен период в 1 год")
+            self.initial_period = timedelta(days=365)
         os.makedirs(self.data_dir, exist_ok=True)
         os.makedirs(self.plot_dir, exist_ok=True)
 
     def _select_symbols(self):
         """Интерактивный выбор криптовалютных пар"""
-        popular_symbols = [
+        popular_symbols =( 
             "BTCUSDT",
             "ETHUSDT",
             "BNBUSDT",
@@ -55,7 +59,7 @@ class CryptoDataVisualizer:
             "DOGEUSDT",
             "DOTUSDT",
             "MATICUSDT",
-        ]  # тоже tuple
+            )
 
         print("\nПопулярные криптовалютные пары:")
         for i, symbol in enumerate(popular_symbols, 1):
@@ -66,45 +70,65 @@ class CryptoDataVisualizer:
         while True:
             user_input = input("Ваш выбор: ").strip()
 
-            # Обработка выбора из списка
             if all(c.isdigit() for c in user_input.split()):
-                selected = (
-                    []
-                )  # непонятно зачем создавать лист и переводить потому в тупл, если можно сразу
+                selected = set()
                 for num in user_input.split():
                     idx = int(num) - 1
                     if 0 <= idx < len(popular_symbols):
-                        selected.append(popular_symbols[idx])
+                        selected.add(popular_symbols[idx])
                 if selected:
                     return tuple(selected)
 
             print("Неверный ввод. Попробуйте снова.")
 
-    def fetch_crypto_data(self, symbol, start_date=None, end_date=None):
-        """Получение данных с Binance API с пагинацией"""
+    def fetch_crypto_data(self, symbol, start_date=None, end_date=None, limit=1000):
+        """Получение данных с Binance API с пагинацией (в московском времени)"""
+        msk_tz = pytz.timezone('Europe/Moscow')
+        utc_tz = pytz.utc
+        
         if start_date is None:
-            start_date = datetime.now() - self.initial_period
-
-        start_date = pd.to_datetime(start_date)
-        end_date = pd.to_datetime(end_date) if end_date else datetime.now()
+            start_date = datetime.now(msk_tz) - self.initial_period
+        else:
+            # Конвертируем в московское время
+            if isinstance(start_date, str):
+                start_date = pd.to_datetime(start_date)
+            if start_date.tzinfo is None:
+                start_date = msk_tz.localize(start_date)
+            else:
+                start_date = start_date.astimezone(msk_tz)
+        
+        if end_date is None:
+            end_date = datetime.now(msk_tz)
+        else:
+            if isinstance(end_date, str):
+                end_date = pd.to_datetime(end_date)
+            if end_date.tzinfo is None:
+                end_date = msk_tz.localize(end_date)
+            else:
+                end_date = end_date.astimezone(msk_tz)
 
         all_data = []
         current_start = start_date
 
         while current_start < end_date:
+            # Конвертируем в UTC для запроса к Binance
+            utc_start = current_start.astimezone(utc_tz)
+            utc_end = end_date.astimezone(utc_tz)
+            
             params = {
-                "symbol": symbol,
+                "symbol": symbol.upper(),
                 "interval": self.interval,
-                "startTime": int(current_start.timestamp() * 1000),
-                "limit": 1000,
+                "startTime": int(utc_start.timestamp() * 1000),
+                "limit": limit,
             }
-
+            
             if end_date:
-                params["endTime"] = int(end_date.timestamp() * 1000)
-
+                params["endTime"] = int(utc_end.timestamp() * 1000)
+            
             try:
                 response = requests.get(
-                    "https://api.binance.com/api/v3/klines", params=params
+                    "https://api.binance.com/api/v3/klines", 
+                    params={k: v for k, v in params.items() if v is not None}
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -115,31 +139,33 @@ class CryptoDataVisualizer:
                 df = pd.DataFrame(
                     data,
                     columns=[
-                        "open_time",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "volume",
-                        "close_time",
-                        "quote_volume",
-                        "count",
-                        "taker_buy_volume",
-                        "taker_buy_quote_volume",
-                        "ignore",
+                        "open_time", "open", "high", "low", "close", "volume",
+                        "close_time", "quote_volume", "count",
+                        "taker_buy_volume", "taker_buy_quote_volume", "ignore",
                     ],
                 )
-
+                
                 df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
+                df["open_time"] = df["open_time"].dt.tz_localize('UTC').dt.tz_convert('Europe/Moscow')
+                
                 all_data.append(df)
 
-                last_time = pd.to_datetime(df.iloc[-1]["open_time"], unit="ms")
-                current_start = last_time + timedelta(milliseconds=1)
+                if len(df) > 0:
+                    last_time = df["open_time"].iloc[-1]
+                    current_start = last_time.to_pydatetime() + timedelta(milliseconds=1)
+                else:
+                    break
 
-                # Для маленьких интервалов делаем паузу между запросами
-                if self.interval in ["1s", "15s", "1m"]:  # снова тупл
-                    time.sleep(0.1)
+                # Пауза между запросами
+                if self.interval in ("1s", "15s", "1m", "3m", "5m"):
+                    time.sleep(0.2)
 
+            except requests.exceptions.HTTPError as e:
+                print(f"HTTP ошибка при получении данных для {symbol}: {e}")
+                if response.status_code == 429:
+                    time.sleep(10)
+                    continue
+                break
             except Exception as e:
                 print(f"Ошибка при получении данных для {symbol}: {e}")
                 break
@@ -147,8 +173,12 @@ class CryptoDataVisualizer:
         if all_data:
             final_df = pd.concat(all_data)
             final_df.set_index("open_time", inplace=True)
-            numeric_cols = ["open", "high", "low", "close", "volume"]
+            
+            numeric_cols = ["open", "high", "low", "close", "volume", 
+                        "quote_volume", "count", 
+                        "taker_buy_volume", "taker_buy_quote_volume"]
             final_df[numeric_cols] = final_df[numeric_cols].apply(pd.to_numeric, axis=1)
+            
             return final_df[["open", "high", "low", "close", "volume"]]
 
         return None
@@ -166,7 +196,7 @@ class CryptoDataVisualizer:
                 last_date = df.index[-1]
 
                 update_start = last_date
-                update_end = update_start + self.interval_timedelta * 2
+                update_end = update_start + self.initial_period
 
                 # Получаем только новые данные за прошедший интервал
                 new_data = self.fetch_crypto_data(
@@ -218,7 +248,7 @@ class CryptoDataVisualizer:
 
         # График объема торгов
         plt.figure(figsize=(14, 5))
-        plt.bar(df.index, df["volume"], color="skyblue", alpha=0.7)
+        plt.plot(df["volume"], linewidth=2, color="royalblue")
         plt.title(f"Объем торгов {symbol}", fontsize=16, pad=20)
         plt.xlabel("Дата", fontsize=12)
         plt.ylabel("Объем", fontsize=12)
@@ -241,17 +271,17 @@ class CryptoDataVisualizer:
         """Запуск автоматического обновления"""
         self.update_data()
 
-        # Устанавливаем расписание в соответствии с интервалом
         if self.interval == "1s":
-            schedule.every(1).seconds.do(self.update_data)
-        elif self.interval == "10s":
-            schedule.every(10).seconds.do(self.update_data)
+            update_interval = "10m"
+            schedule.every(10).minutes.do(self.update_data)
         elif self.interval == "1m":
-            schedule.every(1).minutes.do(self.update_data)
+            update_interval = "10m"
+            schedule.every(10).minutes.do(self.update_data)
         elif self.interval == "1h":
+            update_interval = "1h"
             schedule.every(1).hours.do(self.update_data)
 
-        print(f"Автоматическое обновление запущено с интервалом {self.interval}")
+        print(f"Автоматическое обновление запущено с интервалом {update_interval}")
 
         while True:
             schedule.run_pending()
