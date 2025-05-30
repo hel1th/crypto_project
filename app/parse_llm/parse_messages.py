@@ -16,11 +16,11 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def llm_parse(dict_of_messages: dict) -> None:
     
-    json_dict = []
+    json_dict = {}
     
     client = gigachat.GigaChat(credentials=API_KEY_LLM, verify_ssl_certs=False)
     
-    for text, time in dict_of_messages.items():    
+    for time, text in dict_of_messages.items():    
 
         prompt = f"""Parse message {text}, forming a dict message_data = 'coin': str without #, 'timeframe': str, \
             'signal_type': str, 'entry_prices': list, 'take_profit_targets': list, 'stop_loss': (float, int), 'leverage': int,\
@@ -56,4 +56,56 @@ def llm_parse(dict_of_messages: dict) -> None:
             
     with open("messages_data.json", "w", encoding='UTF-8') as json_file:
         json.dump(json_dict, json_file, ensure_ascii=True, indent=4)
-            
+        
+
+dict_of_messages ={
+    '23:15 12.05.25' : """📈 Long Signal
+
+#UMAUSDT 30m | Mid-Term
+
+Entry price : 
+
+1) 1.271000
+2) 1.23287
+
+- ⏳ -  Signal details :
+
+1) 1.278299
+2) 1.304851
+3) 1.331403
+4) 1.357955
+
+❌Stop-Loss : 1.190927
+
+🧲Leverage : 10x [Isolated]
+
+@USABitcoinArmy
+___
+💡After reaching the first target you can put the rest of the position to breakeven.""" ,
+
+'23.30 12.05.25': """📉 Short Signal
+
+#TRBUSDT 30m | Mid-Term
+
+Entry price : 
+
+1) 48.374
+2) 49.825
+
+- ⏳ -  Signal details :
+
+1) 48.090
+2) 47.069
+3) 46.048
+4) 45.027
+
+❌Stop-Loss : 51.421
+
+🧲Leverage : 10x [Isolated]
+
+@USABitcoinArmy
+___
+💡After reaching the first target you can put the rest of the position to breakeven.""" 
+}   
+
+llm_parse(dict_of_messages)
