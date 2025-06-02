@@ -1,4 +1,3 @@
-# app/telegram/main.py
 import asyncio
 import psycopg2
 import os
@@ -30,6 +29,7 @@ async def setup_channels(client, conn, channels_input):
             channel_id = get_or_create_channel(conn, channel, entity.title)
             channels_to_parse.append((channel, channel_id))
         except Exception as e:
+            logger.error(f"Не удалось добавить канал {channel}: {e}")
             print(f"❌ Не удалось добавить канал {channel}: {e}")
     return channels_to_parse
 
@@ -54,6 +54,7 @@ async def subscribe_to_channels(client, channels_to_parse):
             entity = await client.get_entity(channel)
             entities.append((channel, entity, channel_id))
         except Exception as e:
+            logger.error(f"Ошибка при получении сущности канала {channel}: {e}")
             print(f"❌ Ошибка при получении сущности канала {channel}: {e}")
 
     for channel, entity, channel_id in entities:
@@ -89,7 +90,11 @@ async def handle_new_message(event, channel, channel_id):
         "message_id": event.message.id,
     }
     save_single_to_db(new_message, channel)
-    analyze_all_db_msg(get_last_msg())
+    last_msg = get_last_msg()
+    if last_msg and isinstance(last_msg, (tuple, list)):  # Проверка на корректный тип
+        analyze_all_db_msg([last_msg])  # Передаём как список с одним элементом
+    else:
+        logger.warning(f"Не удалось проанализировать последнее сообщение: {last_msg}")
 
 
 async def main():
@@ -145,6 +150,7 @@ async def main():
                 )
                 await client.run_until_disconnected()
             except Exception as e:
+                logger.error(f"Ошибка: {e}")
                 print(f"❌ Ошибка: {e}")
 
 
@@ -154,4 +160,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("⏹ Остановлено пользователем.")
     except Exception as e:
+        logger.error(f"Ошибка: {e}")
         print(f"❌ Ошибка: {e}")
