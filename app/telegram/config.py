@@ -31,3 +31,5 @@ DB_CONFIG: dict[str, str | None] = {
     "host": os.getenv("DB_HOST"),
     "port": os.getenv("DB_PORT"),
 }
+
+API_KEY_LLM = os.getenv("API_KEY_LLM")

@@ -1,6 +1,7 @@
 import psycopg2
-from cfg import DB_CONFIG
-from parse_messages import llm_parse_and_insert
+
+from ..config import DB_CONFIG
+from .parse_messages import llm_parse_and_insert
 
 
 def get_all_msg() -> tuple:
@@ -34,4 +35,5 @@ def analyze_all_db_msg(msg_entities):
         llm_parse_and_insert(*msg)
 
 
-get_last_msg()
+if __name__ == "__main__":
+    analyze_all_db_msg(get_all_msg())

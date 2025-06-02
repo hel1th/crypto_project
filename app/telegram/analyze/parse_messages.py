@@ -3,7 +3,7 @@ from ast import literal_eval
 import gigachat
 from gigachat.models import Chat, Messages, MessagesRole
 from datetime import datetime
-from cfg import DB_CONFIG, API_KEY_LLM
+from ..config import DB_CONFIG, API_KEY_LLM
 
 
 def llm_parse_and_insert(message_id, channel_id, text, signal_time):
@@ -36,7 +36,6 @@ def llm_parse_and_insert(message_id, channel_id, text, signal_time):
 
     except Exception as e:
         print(f"Parsing failed: {e}")
-        return
 
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
