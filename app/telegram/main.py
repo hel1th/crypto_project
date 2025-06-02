@@ -4,7 +4,7 @@ import os
 import logging
 from datetime import datetime
 from auth_check import check_auth
-from config import (
+from tg_config import (
     TZ,
     LIMIT,
     DB_CONFIG,
@@ -72,7 +72,7 @@ async def fetch_messages(
         entity = await client.get_entity(channel_username)
         messages = []
         async for msg in client.iter_messages(entity, limit=limit):
-            if not msg.message:
+            if not msg.message or "% profit" in msg.message.lower():
                 continue
             author = None
             if msg.sender:
