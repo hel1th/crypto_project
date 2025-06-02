@@ -14,8 +14,9 @@ TG_API_HASH = os.getenv("TG_API_HASH")
 TG_BASE_SESSION_NAME = os.getenv(
     "TG_SESSION_NAME", "my_app_session"
 )  # Базовое имя сессии
-TG_SESSION_SUFFIX = os.getenv("TG_SESSION_SUFFIX", "")  # Суффикс (например, _vlad)
-TG_SESSION_NAME = f"{TG_BASE_SESSION_NAME}{TG_SESSION_SUFFIX}"  # Итоговое имя сессии
+
+TG_SESSION_SUFFIX = os.getenv("TG_SESSION_SUFFIX", "")
+TG_SESSION_NAME = f"{TG_BASE_SESSION_NAME}{TG_SESSION_SUFFIX}"
 
 # Путь к папке сессий
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,8 +24,7 @@ SESSIONS_DIR = os.path.join(BASE_DIR, "sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 TG_SESSION_PATH = os.path.join(SESSIONS_DIR, TG_SESSION_NAME)
 
-
-DB_CONFIG = {
+DB_CONFIG: dict[str, str | None] = {
     "dbname": os.getenv("DB_NAME"),
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),

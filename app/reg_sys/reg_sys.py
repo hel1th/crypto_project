@@ -13,17 +13,18 @@ POSSIBLE_PASSWORD_CHARS = string.ascii_letters + string.digits + string.punctuat
 POSSIBLE_USERNAME_CHARS = string.ascii_letters + string.digits + "'-_."
 MIN_PASSWORD_LENGTH = 8
 
+
 def hash_password(password, salt=None):
     if salt is None:
         salt = os.urandom(16).hex()
     salted_password = salt + password + PASSWORD_SALT
-    hashed_password = hashlib.sha256(salted_password.encode('utf-8')).hexdigest()
+    hashed_password = hashlib.sha256(salted_password.encode("utf-8")).hexdigest()
     return salt, hashed_password
 
 
 def verify_password(password, stored_salt, stored_hash):
     salted_password = stored_salt + password + PASSWORD_SALT
-    hashed_password = hashlib.sha256(salted_password.encode('utf-8')).hexdigest()
+    hashed_password = hashlib.sha256(salted_password.encode("utf-8")).hexdigest()
     return hashed_password == stored_hash
 
 
@@ -39,11 +40,13 @@ def register_user(username, password):
         if is_user_exists(username):
             st.error("Username already exists.")
             return False
-        
+
         if not isinstance(password, str):
             raise TypeError("Password must be a string.")
         if len(password) < MIN_PASSWORD_LENGTH:
-            raise MinLengthError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters long.")
+            raise MinLengthError(
+                f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
+            )
         for char in password:
             if char not in POSSIBLE_PASSWORD_CHARS:
                 raise PossibleCharError(f"Invalid character in password: {char}")
@@ -77,6 +80,7 @@ def register_user(username, password):
     except Exception as e:
         st.error(f"Registration Error: An unexpected error occurred: {e}")
         return False
+
 
 def login_user(username, password):
     user_data = get_user_data(username)
@@ -120,7 +124,7 @@ def get_user_data(username):
     except ValueError:
         st.error("Data file is corrupted, user data is unavailable")
         return None
-    
+
 
 def authentication_page():
     auth_option = st.radio("Choose an option:", ("Login", "Register"))
@@ -148,9 +152,9 @@ def authentication_page():
 
 def main():
     st.header("Добро пожаловать в мир криптохомячков")
-    if 'logged_in' not in st.session_state:
+    if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
-    if 'username' not in st.session_state:
+    if "username" not in st.session_state:
         st.session_state.username = None
 
     if st.session_state.logged_in:
@@ -160,8 +164,8 @@ def main():
             st.session_state.username = None
             st.rerun()
     else:
-        authentication_page() 
+        authentication_page()
+
 
 if __name__ == "__main__":
     main()
-
