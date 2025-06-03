@@ -306,5 +306,4 @@ class CryptoSignalVisualizer:
 
 if __name__ == "__main__":
     visualizer = CryptoSignalVisualizer()
-    signal_tuple = ("BTCUSDT", datetime(2025, 6, 2, 19, 46, 54), "Short", 103000, 104700)
     visualizer.save_signal_chart(*signal_tuple)
