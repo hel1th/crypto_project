@@ -3,35 +3,38 @@ import psycopg2
 import os
 import logging
 from datetime import datetime
-from auth_check import check_auth
-from tg_config import (
-    TZ,
-    LIMIT,
-    DB_CONFIG,
-    TG_SESSION_PATH,
+from .auth_check import check_auth
+from .config import TZ, LIMIT, DB_CONFIG, TG_SESSION_PATH
+from .tg_utils import (
+    get_or_create_channel,
+    fetch_messages,
+    save_batch_to_db,
+    save_single_to_db,
 )
-from telethon.errors import ChannelInvalidError, ChannelPrivateError
 from telethon import events
 from telethon.tl.types import User, Channel
+from .analyze.msg_process import get_last_msg, get_all_msg, analyze_all_db_msg
+from .logging_config import setup_logging
 
-# Define table names
-TABLE = "messages"
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler("telegram.log"),
-        logging.StreamHandler(),
-    ],
-)
+setup_logging()
 logger = logging.getLogger(__name__)
 
-# Ensure telethon logs are captured
-logging.getLogger("telethon").setLevel(logging.INFO)
+
+async def setup_channels(client, conn, channels_input):
+    """Setup channels for parsing and return a list of (channel, channel_id) tuples."""
+    channels_to_parse = []
+    for channel in [c.strip() for c in channels_input.split(",") if c.strip()]:
+        try:
+            entity = await client.get_entity(channel)
+            channel_id = get_or_create_channel(conn, channel, entity.title)
+            channels_to_parse.append((channel, channel_id))
+        except Exception as e:
+            logger.error(f"Не удалось добавить канал {channel}: {e}")
+            print(f"❌ Не удалось добавить канал {channel}: {e}")
+    return channels_to_parse
 
 
+<<<<<<< app/telegram/main.py
 def get_or_create_channel(conn, username, title=None):
     """Get or create a channel in the channels table."""
     try:
@@ -156,19 +159,73 @@ def save_single_to_db(msg, channel):
             msg["date"],
             msg["author"],
             msg["message_id"],
+=======
+async def run_parser(client, channels_to_parse, limit):
+    """Run the parser for historical messages."""
+    for channel, channel_id in channels_to_parse:
+        print(f"⏳ Парсим {limit} прошлых сообщений из канала {channel}...")
+        messages = await fetch_messages(client, channel, channel_id, limit)
+        if messages:
+            save_batch_to_db(messages, channel)
+        print(
+            f"✅ Спарсено и сохранено {len(messages)} прошлых сообщений из канала {channel}"
+>>>>>>> app/telegram/main.py
         )
-        cur.execute(query, data)
-        conn.commit()
-        if cur.rowcount > 0:
-            print(f"📩 Новое сообщение сохранено (канал: {channel})")
-    except Exception as e:
-        print(f"❌ Ошибка при сохранении нового сообщения из канала {channel}: {e}")
-    finally:
-        cur.close()
-        conn.close()
+
+
+async def subscribe_to_channels(client, channels_to_parse):
+    """Subscribe to new messages from channels."""
+    entities = []
+    for channel, channel_id in channels_to_parse:
+        try:
+            entity = await client.get_entity(channel)
+            entities.append((channel, entity, channel_id))
+        except Exception as e:
+            logger.error(f"Ошибка при получении сущности канала {channel}: {e}")
+            print(f"❌ Ошибка при получении сущности канала {channel}: {e}")
+
+    for channel, entity, channel_id in entities:
+        client.add_event_handler(
+            lambda event: handle_new_message(event, channel, channel_id),
+            events.NewMessage(chats=entity),
+        )
+
+
+async def handle_new_message(event, channel, channel_id):
+    """Handle a new message event and save it to the database."""
+    if not event.message.message or not isinstance(event.chat, Channel):
+        return
+
+    author = "Unknown"
+    if event.message.sender:
+        if isinstance(event.message.sender, User):
+            author = (
+                event.message.sender.username
+                or event.message.sender.first_name
+                or str(event.message.sender.id)
+            )
+        elif isinstance(event.message.sender, Channel):
+            author = event.message.sender.title or str(event.message.sender.id)
+        else:
+            author = str(event.message.sender.id)
+
+    new_message = {
+        "author": author,
+        "text": event.message.message,
+        "date": event.message.date.astimezone(tz=TZ),
+        "channel_id": channel_id,
+        "message_id": event.message.id,
+    }
+    save_single_to_db(new_message, channel)
+    last_msg = get_last_msg()
+    if last_msg and isinstance(last_msg, (tuple, list)):  # Проверка на корректный тип
+        analyze_all_db_msg([last_msg])  # Передаём как список с одним элементом
+    else:
+        logger.warning(f"Не удалось проанализировать последнее сообщение: {last_msg}")
 
 
 async def main():
+    """Main entry point for the Telegram parser."""
     session_file = f"{TG_SESSION_PATH}.session"
     if not os.path.exists(session_file):
         print(
@@ -182,7 +239,6 @@ async def main():
         me = await client.get_me()
         print(f"👤 Ваш Telegram: {me.username or me.first_name}")
 
-        # Get channels from user input
         channels_input = input(
             "Введите список каналов через запятую (e.g. @binance,joe_speen_youtube): "
         )
@@ -193,115 +249,36 @@ async def main():
             print("❌ Не указаны каналы для обработки.")
             return
 
-        # Connect to database to manage channels
-        conn = psycopg2.connect(**DB_CONFIG)
-        channels_to_parse = []
-        try:
-            # Insert or update channels from input
-            for channel in input_channels:
-                try:
-                    entity = await client.get_entity(channel)
-                    channel_id = get_or_create_channel(conn, channel, entity.title)
-                    channels_to_parse.append((channel, channel_id))
-                except Exception as e:
-                    print(f"❌ Не удалось добавить канал {channel}: {e}")
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            try:
+                channels_to_parse = await setup_channels(client, conn, channels_input)
+                if not channels_to_parse:
+                    print("❌ Нет каналов для парсинга.")
+                    return
 
-            # Fetch existing channels to parse
-            cur = conn.cursor()
-            cur.execute("SELECT username, id FROM channels")
-            db_channels = cur.fetchall()
-            if not db_channels:
-                print("❌ Нет каналов в базе данных для парсинга.")
-                return
-            channels_to_parse = [
-                (username, channel_id) for username, channel_id in db_channels
-            ]
-        except Exception as e:
-            print(f"❌ Ошибка при обработке каналов: {e}")
-            conn.rollback()
-            return
-        finally:
-            cur.close()
-
-        limit = input(
-            f"Количество сообщений для начального парсинга на канал ({LIMIT} по умолчанию): "
-        )
-        limit = int(limit) if limit else LIMIT
-
-        # Парсинг прошлых сообщений для всех каналов
-        for channel, channel_id in channels_to_parse:
-            print(f"⏳ Парсим {limit} прошлых сообщений из канала {channel}...")
-            messages = await fetch_messages(client, channel, channel_id, limit)
-            if messages:
-                save_batch_to_db(messages, channel)
-            print(
-                f"✅ Спарсено и сохранено {len(messages)} прошлых сообщений из канала {channel}"
-            )
-
-        # Подписка на новые сообщения для всех каналов
-        try:
-            entities = []
-            for channel, channel_id in channels_to_parse:
-                try:
-                    entity = await client.get_entity(channel)
-                    entities.append((channel, entity, channel_id))
-                except ChannelPrivateError:
-                    print(
-                        f"❌ Не могу подписаться на канал {channel}: он приватный, и вы не являетесь участником."
+                limit = (
+                    input(
+                        f"Количество сообщений для начального парсинга на канал ({LIMIT} по умолчанию): "
                     )
-                except ChannelInvalidError:
-                    print(f"❌ Канал {channel} не найден.")
-                except Exception as e:
-                    print(f"❌ Ошибка при получении сущности канала {channel}: {e}")
+                    or LIMIT
+                )
+                limit = int(limit)
 
-            for channel, entity, channel_id in entities:
+                await run_parser(client, channels_to_parse, limit)
+                messages = get_all_msg()
+                if messages:  # Проверка на None
+                    analyze_all_db_msg(messages)
+                else:
+                    print("⚠️ Нет данных для анализа после парсинга.")
 
-                @client.on(events.NewMessage(chats=entity))
-                async def handle_new_message(event, ch=channel, ch_id=channel_id):
-                    if not event.message.message:
-                        return
-                    if not isinstance(event.chat, Channel):
-                        return
-
-                    author = None
-                    if event.message.sender:
-                        if isinstance(event.message.sender, User):
-                            author = (
-                                event.message.sender.username
-                                or event.message.sender.first_name
-                                or str(event.message.sender.id)
-                            )
-                        elif isinstance(event.message.sender, Channel):
-                            author = event.message.sender.title or str(
-                                event.message.sender.id
-                            )
-                        else:
-                            author = str(event.message.sender.id)
-                    else:
-                        logger.info(
-                            f"Sender is None for message {event.message.id} in channel {ch}"
-                        )
-                        author = "Unknown"
-
-                    new_message = {
-                        "author": author,
-                        "text": event.message.message,
-                        "date": event.message.date.astimezone(
-                            tz=TZ
-                        ),  # Keep as datetime object
-                        "channel_id": ch_id,
-                        "message_id": event.message.id,
-                    }
-                    save_single_to_db(new_message, ch)
-
-            print(
-                f"🔔 Ожидание новых сообщений в каналах: {', '.join(c[0] for c in channels_to_parse)}..."
-            )
-            await client.run_until_disconnected()
-        except Exception as e:
-            print(f"❌ Ошибка при подписке на каналы: {e}")
-        finally:
-            conn.close()
+                await subscribe_to_channels(client, channels_to_parse)
+                print(
+                    f"🔔 Ожидание новых сообщений в каналах: {', '.join(c[0] for c in channels_to_parse)}..."
+                )
+                await client.run_until_disconnected()
+            except Exception as e:
+                logger.error(f"Ошибка: {e}")
+                print(f"❌ Ошибка: {e}")
 
 
 if __name__ == "__main__":
@@ -310,4 +287,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("⏹ Остановлено пользователем.")
     except Exception as e:
+        logger.error(f"Ошибка: {e}")
         print(f"❌ Ошибка: {e}")
