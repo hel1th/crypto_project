@@ -69,17 +69,6 @@ class CryptoDataVisualizer:
         
         fig.add_trace(go.Candlestick(**candle_settings), row=1, col=1)
         
-        # Линия цены открытия
-        fig.add_trace(go.Scatter(
-            x=df.index,
-            y=df['open'],
-            mode='lines',
-            name='Цена открытия',
-            line=dict(color='rgba(65, 105, 225, 0.7)', width=1.5),
-            hoverinfo='text',
-            hovertext=[f"Цена открытия: {y:.8f}" for y in df['open']]
-        ), row=1, col=1)
-        
         # Объемы
         fig.add_trace(go.Bar(
             x=df.index,
