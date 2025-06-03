@@ -1,6 +1,6 @@
 import logging
 from telethon import TelegramClient
-from config import TG_SESSION_PATH, TG_API_ID, TG_API_HASH
+from tg_config import TG_SESSION_PATH, TG_API_ID, TG_API_HASH
 
 # Configure logging
 logging.basicConfig(
