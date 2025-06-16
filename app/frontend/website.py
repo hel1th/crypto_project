@@ -290,7 +290,7 @@ def get_signals_by_channel(channel_id) -> list:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, symbol, stop_loss, leverage, margin_mode, signal_time, entry_prices, take_profits FROM trading_signals WHERE channel_id = %s ORDER BY signal_time DESC LIMIT 5;",
+                    "SELECT id, symbol, action, stop_loss, leverage, margin_mode, signal_time, entry_prices, take_profits FROM trading_signals WHERE channel_id = %s ORDER BY signal_time DESC LIMIT 5;",
                     (channel_id,),
                 )
                 return cur.fetchall()
@@ -372,7 +372,7 @@ def main():
             if value == selected_channel:
                 selected_id = key
                 break
-        # появление списка сигналов
+        selected_signals = get_signals_by_channel(selected_id)
 
         df = pd.DataFrame(selected_signals, columns=column_names)
         index_list = [i for i in range(1, len(selected_signals) + 1)]
