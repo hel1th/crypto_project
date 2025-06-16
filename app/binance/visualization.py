@@ -335,13 +335,13 @@ class CryptoSignalVisualizer:
             fig = self.create_signal_chart(
                 symbol, signal_time, signal_type, price1, price2
             )
-            
+
             # Исправлено: удален неподдерживаемый аргумент auto_open
             html_str = fig.to_html(full_html=True, include_plotlyjs="cdn")
-            
+
             print("График с сигналом успешно сгенерирован")
             return html_str
-            
+
         except Exception as e:
             print(f"Ошибка при создании графика: {str(e)}")
             return None
