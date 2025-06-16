@@ -410,7 +410,7 @@ def main():
                     take_profit,
                 )
                 if path:
-                    components.html(path)
+                    components.html(path, height=4000)
                 else:
                     st.error("Не удалось сгенерировать график.")
             except TypeError as e:
