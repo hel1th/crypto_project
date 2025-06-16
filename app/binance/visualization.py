@@ -330,28 +330,24 @@ class CryptoSignalVisualizer:
             raise
 
     def save_signal_chart(self, symbol, signal_time, signal_type, price1, price2):
-        """Создаёт и сохраняет график с сигналом"""
+        """Создаёт график с сигналом и возвращает строку с HTML-кодом"""
         try:
-            fig = self.create_signal_chart(
-                symbol, signal_time, signal_type, price1, price2
+            fig = self.create_signal_chart(symbol, signal_time, signal_type, price1, price2)
+            
+            # Исправлено: удален неподдерживаемый аргумент auto_open
+            html_str = fig.to_html(
+                full_html=True,
+                include_plotlyjs='cdn'
             )
-            signal_time = self._ensure_datetime(signal_time)
-
-            plot_path = os.path.join(
-                self.plot_dir,
-                f"{symbol}_signal_{signal_time.strftime('%Y-%m-%d_%H-%M-%S')}.html",
-            )
-            fig.write_html(
-                plot_path, full_html=True, include_plotlyjs="cdn", auto_open=False
-            )
-
-            print(f"График с сигналом сохранён: {plot_path}")
-            return plot_path
-
+            
+            print("График с сигналом успешно сгенерирован")
+            return html_str
+            
         except Exception as e:
             print(f"Ошибка при создании графика: {str(e)}")
             return None
 
 
 visualizer = CryptoSignalVisualizer()
-# visualizer.save_signal_chart()
+signal_tuple = ("BTCUSDT", "2023-10-15 12:00:00", "buy", 28000, 27500)
+visualizer.save_signal_chart(*signal_tuple)
