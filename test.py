@@ -38,8 +38,7 @@ FROM trading_signals ts
          JOIN channels c ON ts.channel_id = c.id
 WHERE ts.channel_id = 1"""
 
-sql2 = """
-SELECT
+sql2 = """SELECT
     ts.id AS signal_id,
     ts.symbol,
     ts.action,
@@ -47,23 +46,27 @@ SELECT
     ts.leverage,
     ts.margin_mode,
     ts.signal_time,
-    ts.created_at,
     c.title AS channel_title,
-    ARRAY_AGG(DISTINCT sep.price) FILTER (WHERE sep.price IS NOT NULL) AS entry_prices,
-    ARRAY_AGG(DISTINCT stp.price) FILTER (WHERE stp.price IS NOT NULL) AS take_profit_targets
+    jsonb_array_elements(ts.entry_prices)::float AS entry_price,
+    jsonb_array_elements(ts.take_profits)::float AS take_profit_target
 FROM trading_signals ts
-         JOIN channels c ON ts.channel_id = c.id
-         LEFT JOIN signal_entry_prices sep ON ts.id = sep.signal_id
-         LEFT JOIN signal_take_profits stp ON ts.id = stp.signal_id
-WHERE ts.channel_id = 1
-GROUP BY
-    ts.id, ts.symbol, ts.action, ts.stop_loss, ts.leverage,
-    ts.margin_mode, ts.signal_time, ts.created_at, c.title;"""
+JOIN channels c ON ts.channel_id = c.id
+WHERE ts.channel_id = 1;"""
+sql3 = f"""SELECT
+    ts.symbol,
+    ts.action,
+    ts.signal_time,
+    ts.stop_loss,
+    jsonb_array_elements(ts.take_profits)::float AS take_profit_target
+FROM trading_signals ts
+JOIN channels c ON ts.channel_id = c.id
+WHERE ts.id = {trade_id};"""
+
 try:
     with psycopg2.connect(**DB_CONFIG) as conn:
         with conn.cursor() as cur:
-            cur.execute(sql2)
-            msg_entities = cur.fetchall()
+            cur.execute(sql3)
+            msg_entities = cur.fetchone()
             print(msg_entities)
 except Exception as e:
     print(f"⚠️ Unluck u have an error: {e}")
