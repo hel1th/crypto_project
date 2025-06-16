@@ -8,9 +8,19 @@ import pytz
 
 
 class CryptoSignalVisualizer:
+
+    COLORS = {
+        "BULL": "rgba(0, 230, 210, 1.0)",
+        "BEAR": "rgba(255, 60, 60, 1.0)",
+        "SIGNAL": "rgba(255, 165, 0, 1.0)",
+        "STOP_LOSS": "rgba(255, 0, 0, 0.7)",
+        "TAKE_PROFIT": "rgba(0, 200, 0, 0.7)",
+        "CROSS": "rgba(150, 0, 200, 1.0)",
+    }
+
     def __init__(self, data_dir="app/binance/crypto_data", plot_dir=None):
         self.data_dir = data_dir
-        self.plot_dir = plot_dir if plot_dir else os.path.join(data_dir, "plots")
+        self.plot_dir = plot_dir or os.path.join(data_dir, "plots")
         os.makedirs(self.plot_dir, exist_ok=True)
         self.timezone = pytz.timezone("Europe/Moscow")
         self.now = datetime.now(self.timezone)
@@ -154,14 +164,9 @@ class CryptoSignalVisualizer:
                     )
                     df = additional_df
 
-            COLOR_BULL = "rgba(0, 230, 210, 1.0)"
-            COLOR_BEAR = "rgba(255, 60, 60, 1.0)"
-            COLOR_SIGNAL = "rgba(255, 165, 0, 1.0)"
-            COLOR_STOP_LOSS = "rgba(255, 0, 0, 0.7)"
-            COLOR_TAKE_PROFIT = "rgba(0, 200, 0, 0.7)"
-            COLOR_CROSS = "rgba(150, 0, 200, 1.0)"
-
-            df["color"] = np.where(df["open"] > df["close"], COLOR_BEAR, COLOR_BULL)
+            df["color"] = np.where(
+                df["open"] > df["close"], self.COLORS["BEAR"], self.COLORS["BULL"]
+            )
 
             fig = make_subplots(
                 rows=2,
@@ -180,10 +185,10 @@ class CryptoSignalVisualizer:
                     high=df["high"],
                     low=df["low"],
                     close=df["close"],
-                    increasing_line_color=COLOR_BULL,
-                    decreasing_line_color=COLOR_BEAR,
-                    increasing_fillcolor=COLOR_BULL,
-                    decreasing_fillcolor=COLOR_BEAR,
+                    increasing_line_color=self.COLORS["BULL"],
+                    decreasing_line_color=self.COLORS["BEAR"],
+                    increasing_fillcolor=self.COLORS["BULL"],
+                    decreasing_fillcolor=self.COLORS["BEAR"],
                     name="Свечи",
                     whiskerwidth=0.9,
                     line={"width": 1},
@@ -210,7 +215,7 @@ class CryptoSignalVisualizer:
                     y=[entry_price],
                     mode="markers+text",
                     marker=dict(
-                        color=COLOR_SIGNAL,
+                        color=self.COLORS["SIGNAL"],
                         size=12,
                         line=dict(width=2, color="rgba(0,0,0,0.8)"),
                     ),
@@ -227,8 +232,12 @@ class CryptoSignalVisualizer:
             )
 
             for price, color, name in [
-                (stop_loss, COLOR_STOP_LOSS, f"Stop-Loss ({stop_loss:.8f})"),
-                (take_profit, COLOR_TAKE_PROFIT, f"Take-Profit ({take_profit:.8f})"),
+                (stop_loss, self.COLORS["STOP_LOSS"], f"Stop-Loss ({stop_loss:.8f})"),
+                (
+                    take_profit,
+                    self.COLORS["TAKE_PROFIT"],
+                    f"Take-Profit ({take_profit:.8f})",
+                ),
             ]:
                 fig.add_trace(
                     go.Scatter(
@@ -250,7 +259,7 @@ class CryptoSignalVisualizer:
                         y=[cross_price],
                         mode="markers+text",
                         marker=dict(
-                            color=COLOR_CROSS,
+                            color=self.COLORS["CROSS"],
                             size=12,
                             line=dict(width=2, color="rgba(0,0,0,0.8)"),
                         ),
