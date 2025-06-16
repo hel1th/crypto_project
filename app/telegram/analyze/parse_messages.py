@@ -5,6 +5,7 @@ from gigachat.models import Chat, Messages, MessagesRole
 from datetime import datetime
 import logging
 from ..config import DB_CONFIG, API_KEY_LLM
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,29 @@ def llm_parse_and_insert(message_id, channel_id, text, signal_time):
             return
         stop_loss_value = float(parsed["stop_loss"])  # Конвертируем в float
 
+        # Проверка entry_prices и take_profit_targets
+        if not isinstance(parsed["entry_prices"], list) or not parsed["entry_prices"]:
+            logger.error(
+                f"Некорректный формат entry_prices в сообщении {message_id}: {parsed['entry_prices']}"
+            )
+            return
+        if (
+            not isinstance(parsed["take_profit_targets"], list)
+            or not parsed["take_profit_targets"]
+        ):
+            logger.error(
+                f"Некорректный формат take_profit_targets в сообщении {message_id}: {parsed['take_profit_targets']}"
+            )
+            return
+
+        # Конвертируем списки цен в JSON
+        entry_prices_json = json.dumps(
+            [float(price) for price in parsed["entry_prices"]]
+        )
+        take_profits_json = json.dumps(
+            [float(price) for price in parsed["take_profit_targets"]]
+        )
+
     except Exception as e:
         logger.error(f"Ошибка парсинга сообщения {message_id}: {e}")
         return
@@ -81,13 +105,14 @@ def llm_parse_and_insert(message_id, channel_id, text, signal_time):
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
-                # Вставка в trading_signals
+                # Вставка в trading_signals с JSONB полями
                 cur.execute(
                     """
                     INSERT INTO trading_signals (
                         message_id, channel_id, symbol, action,
-                        stop_loss, leverage, margin_mode, signal_time
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        stop_loss, leverage, margin_mode, signal_time,
+                        entry_prices, take_profits
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
                     (
@@ -99,27 +124,12 @@ def llm_parse_and_insert(message_id, channel_id, text, signal_time):
                         parsed["leverage"],
                         parsed["margin_mode"],
                         signal_time,
+                        entry_prices_json,
+                        take_profits_json,
                     ),
                 )
 
                 signal_id = cur.fetchone()[0]
-
-                for price in parsed.get("entry_prices", []):
-                    cur.execute(
-                        """
-                        INSERT INTO signal_entry_prices (signal_id, price) VALUES (%s, %s)
-                        """,
-                        (signal_id, float(price)),
-                    )
-
-                for price in parsed.get("take_profit_targets", []):
-                    cur.execute(
-                        """
-                        INSERT INTO signal_take_profits (signal_id, price) VALUES (%s, %s)
-                        """,
-                        (signal_id, float(price)),
-                    )
-
                 conn.commit()
                 logger.info(
                     f"✅ Inserted signal {signal_id} for message {message_id} from channel {channel_id}"
