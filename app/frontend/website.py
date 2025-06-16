@@ -3,7 +3,7 @@ import os
 import sys
 from streamlit.web import cli as stcli
 from streamlit import runtime
-
+import streamlit.components.v1 as components
 import psycopg2
 from psycopg2 import sql, OperationalError
 import streamlit as st
@@ -282,7 +282,8 @@ def get_channel_list() -> list:
                 cur.execute("SELECT id, title, rate FROM channels ORDER BY id;")
                 return cur.fetchall()
     except Exception as e:
-        print(f"⚠️ Unluck u have an error: {e}")
+        st.error(f"Ошибка при получении списка каналов: {e}")
+        return []
 
 
 def get_signals_by_channel(channel_id) -> list:
@@ -295,29 +296,31 @@ def get_signals_by_channel(channel_id) -> list:
                 )
                 return cur.fetchall()
     except Exception as e:
-        print(f"⚠️ Unluck u have an error: {e}")
+        st.error(f"Ошибка при получении сигналов: {e}")
+        return []
 
 
 def grep_signal(signal_id):
-    graphs_sqlq = f"""SELECT
-    ts.symbol,
-    ts.action,
-    ts.signal_time,
-    ts.stop_loss,
-    jsonb_array_elements(ts.take_profits)::float AS take_profit_target
+    graphs_sqlq = """SELECT
+        ts.symbol,
+        ts.signal_time,
+        ts.action,
+        ts.stop_loss,
+        (ts.take_profits->0)::float AS take_profit
     FROM trading_signals ts
     WHERE ts.id = %s;"""
-
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(graphs_sqlq, (signal_id,))
                 return cur.fetchone()
     except Exception as e:
-        print(f"⚠️ Unluck u have an error: {e}")
+        st.error(f"Ошибка при получении данных сигнала: {e}")
+        return None
 
 
 def main():
+    # Стили заголовков
     with stylable_container(
         key="title",
         css_styles="""
@@ -325,9 +328,8 @@ def main():
             font-size: 47px;
             user-select: none;
             cursor: default;
-            
         }
-    """,
+        """,
     ):
         st.markdown("# 📈 Аналитика криптовалют")
     with stylable_container(
@@ -339,7 +341,7 @@ def main():
             cursor: default;
             font-style: italic;
         }
-    """,
+        """,
     ):
         st.markdown("# Следи за курсом самых популярных криптовалют")
     st.markdown(
@@ -349,10 +351,12 @@ def main():
         margin-bottom: 13px;
     }
     </style>
+    <div class='spacer'></div>
     """,
         unsafe_allow_html=True,
     )
-    st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)
+
+    # Инициализация состояния
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
     if "username" not in st.session_state:
@@ -360,29 +364,64 @@ def main():
 
     if st.session_state.logged_in:
         st.write(f"Welcome, {st.session_state.username}!")
-        # появление списка каналов
+
         data = get_channel_list()
+        if not data:
+            st.warning("Каналы не найдены. Проверьте подключение к базе данных.")
+            return
+
         data_dict = {
-            (item[0]): (f"{item[1]} (Процент успешности: {item[2]}%)") for item in data
+            item[0]: f"{item[1]} (Процент успешности: {item[2]}%)" for item in data
         }
         choose_channel_option = list(data_dict.values())
 
         selected_channel = st.selectbox("Выберите канал:", choose_channel_option)
-        for key, value in data_dict.items():
-            if value == selected_channel:
-                selected_id = key
-                break
+        selected_id = next(
+            key for key, value in data_dict.items() if value == selected_channel
+        )
+
         selected_signals = get_signals_by_channel(selected_id)
+        if not selected_signals:
+            st.warning("Сигналы для выбранного канала не найдены.")
+            return
 
         df = pd.DataFrame(selected_signals, columns=column_names)
-        index_list = [i for i in range(1, len(selected_signals) + 1)]
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+        index_list = [el[0] for el in selected_signals]
         selected_signal_id = st.selectbox("Выберите сигнал", index_list)
+        st.write(f"Выбранный сигнал: {selected_signal_id}")
 
-        st.write(f"Выбраный сигнал: {selected_signal_id}")
         data_for_graphic = grep_signal(selected_signal_id)
+        if data_for_graphic:
+            try:
+                (
+                    symbol,
+                    signal_time,
+                    signal_type,
+                    stop_loss,
+                    take_profit,
+                ) = data_for_graphic
+                path = visualizer.save_signal_chart(
+                    symbol,
+                    signal_time,
+                    signal_type,
+                    stop_loss,
+                    take_profit,
+                )
+                if path:
+                    components.html(path)
+                else:
+                    st.error("Не удалось сгенерировать график.")
+            except TypeError as e:
+                st.error(
+                    f"Ошибка в визуализации: неверное количество аргументов или тип данных ({e})."
+                )
+            except Exception as e:
+                st.error(f"Ошибка при генерации графика: {e}")
+        else:
+            st.error("Данные для выбранного сигнала не найдены.")
 
-        visualizer.save_signal_chart(*data_for_graphic)
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.username = None
