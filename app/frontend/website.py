@@ -6,39 +6,71 @@ import psycopg2
 from psycopg2 import sql, OperationalError
 import streamlit as st
 from dotenv import load_dotenv
-from exceptions import *
+from .exceptions import *
 from decimal import Decimal
 import datetime
 import string
 import pandas as pd
 from streamlit_extras.stylable_container import stylable_container
+from ..binance.visualization import CryptoSignalVisualizer
 
 load_dotenv()
 
-data = [
-    (1, "Free bitcoin", 50),
-    (2, "Crypto Humster", 80)
-]
+data = [(1, "Free bitcoin", 50), (2, "Crypto Humster", 80)]
+visualizer = CryptoSignalVisualizer()
 
 selected_signals = [
-    (1, 'SPELLUSDT', 'Short', Decimal('0.0006813'), 10, 'Isolated', datetime.datetime(2025, 6, 2, 19, 43, 43), Decimal('0.000641'), Decimal('0.0006372')),
-    (2, 'DEXEUSDT', 'Long', Decimal('13.429084'), 10, 'Isolated', datetime.datetime(2025, 6, 2, 19, 43, 34), Decimal('14.332'), Decimal('14.414305')),
-    (3, 'ATAUSDT', 'Long', Decimal('0.0462'), 10, 'Isolated', datetime.datetime(2025, 6, 2, 19, 43, 34), Decimal('0.0494'), Decimal('0.0496'))
+    (
+        1,
+        "SPELLUSDT",
+        "Short",
+        Decimal("0.0006813"),
+        10,
+        "Isolated",
+        datetime.datetime(2025, 6, 2, 19, 43, 43),
+        Decimal("0.000641"),
+        Decimal("0.0006372"),
+    ),
+    (
+        2,
+        "DEXEUSDT",
+        "Long",
+        Decimal("13.429084"),
+        10,
+        "Isolated",
+        datetime.datetime(2025, 6, 2, 19, 43, 34),
+        Decimal("14.332"),
+        Decimal("14.414305"),
+    ),
+    (
+        3,
+        "ATAUSDT",
+        "Long",
+        Decimal("0.0462"),
+        10,
+        "Isolated",
+        datetime.datetime(2025, 6, 2, 19, 43, 34),
+        Decimal("0.0494"),
+        Decimal("0.0496"),
+    ),
 ]
 
 column_names = [
-    'ID',
-    'Symbol',
-    'Action',
-    'Stop-loss',
-    'Leverage',
-    'Margin mode',
-    'Signal time',
-    'Entry price',
-    'Take profit'
+    "ID",
+    "Symbol",
+    "Action",
+    "Stop-loss",
+    "Leverage",
+    "Margin mode",
+    "Signal time",
+    "Entry price",
+    "Take profit",
 ]
 
-data_dict = {(item[0]):(f"{item[1]} (Процент успешности: {item[2]}%)") for item in data}
+
+data_dict = {
+    (item[0]): (f"{item[1]} (Процент успешности: {item[2]}%)") for item in data
+}
 choose_channel_option = list(data_dict.values())
 
 PASSWORD_SALT = os.getenv("PASSWORD_SALT")
@@ -54,11 +86,7 @@ POSSIBLE_USERNAME_CHARS = string.ascii_letters + string.digits + "'-_."
 MIN_PASSWORD_LENGTH = 8
 
 
-st.set_page_config(
-    page_title="Крипто-аналитика",
-    page_icon="💰",
-    layout="centered"
-)
+st.set_page_config(page_title="Крипто-аналитика", page_icon="💰", layout="centered")
 
 
 def hash_password(password, salt=None):
@@ -213,7 +241,7 @@ def authentication_page():
                 border-radius: 5px;
                 width: 100%;
             }
-            """
+            """,
         ):
             if st.button("Register"):
                 if username and password:
@@ -250,10 +278,30 @@ def authentication_page():
                     st.warning("Please enter both username and password.")
 
 
+def grep_signal(signal_id):
+    graphs_sqlq = f"""SELECT
+    ts.symbol,
+    ts.action,
+    ts.signal_time,
+    ts.stop_loss,
+    jsonb_array_elements(ts.take_profits)::float AS take_profit_target
+    FROM trading_signals ts
+    JOIN channels c ON ts.channel_id = c.id
+    WHERE ts.id = {signal_id};"""
+
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute(graphs_sqlq)
+                return cur.fetchone()
+    except Exception as e:
+        print(f"⚠️ Unluck u have an error: {e}")
+
+
 def main():
     with stylable_container(
-    key="title",
-    css_styles="""
+        key="title",
+        css_styles="""
         h1 {
             font-size: 47px;
             user-select: none;
@@ -264,8 +312,8 @@ def main():
     ):
         st.markdown("# 📈 Аналитика криптовалют")
     with stylable_container(
-    key="description",
-    css_styles="""
+        key="description",
+        css_styles="""
         h1 {
             font-size: 20px;
             user-select: none;
@@ -276,14 +324,14 @@ def main():
     ):
         st.markdown("# Следи за курсом самых популярных криптовалют")
     st.markdown(
-    """
+        """
     <style>
     .spacer {
         margin-bottom: 13px;
     }
     </style>
     """,
-    unsafe_allow_html=True,
+        unsafe_allow_html=True,
     )
     st.markdown("<div class='spacer'></div>", unsafe_allow_html=True)
     if "logged_in" not in st.session_state:
@@ -293,18 +341,22 @@ def main():
 
     if st.session_state.logged_in:
         st.write(f"Welcome, {st.session_state.username}!")
-        #появление списка каналов
+        # появление списка каналов
         selected_channel = st.selectbox("Выберите канал:", choose_channel_option)
         for key, value in data_dict.items():
             if value == selected_channel:
                 selected_id = key
                 break
-        #появление списка сигналов
+        # появление списка сигналов
         df = pd.DataFrame(selected_signals, columns=column_names)
-        index_list = [i for i in range (1, len(selected_signals) + 1)]
+        index_list = [i for i in range(1, len(selected_signals) + 1)]
         st.dataframe(df, use_container_width=True, hide_index=True)
-        selected_signal_id = st.selectbox('Выберите сигнал', index_list)
+        selected_signal_id = st.selectbox("Выберите сигнал", index_list)
+
         st.write(f"Выбраный сигнал: {selected_signal_id}")
+        data_for_graphic = grep_signal(selected_signal_id)
+
+        visualizer.save_signal_chart(*data_for_graphic)
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.username = None

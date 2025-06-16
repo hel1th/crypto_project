@@ -79,3 +79,4 @@ cython_debug/
 *.log
 *.prof
 crypto_data
+test.py
