@@ -20,7 +20,7 @@ data = [
     (2, "Crypto Humster", 80)
 ]
 
-data_first = [
+selected_signals = [
     (1, 'SPELLUSDT', 'Short', Decimal('0.0006813'), 10, 'Isolated', datetime.datetime(2025, 6, 2, 19, 43, 43), Decimal('0.000641'), Decimal('0.0006372')),
     (2, 'DEXEUSDT', 'Long', Decimal('13.429084'), 10, 'Isolated', datetime.datetime(2025, 6, 2, 19, 43, 34), Decimal('14.332'), Decimal('14.414305')),
     (3, 'ATAUSDT', 'Long', Decimal('0.0462'), 10, 'Isolated', datetime.datetime(2025, 6, 2, 19, 43, 34), Decimal('0.0494'), Decimal('0.0496'))
@@ -52,6 +52,7 @@ DB_CONFIG = {
 POSSIBLE_PASSWORD_CHARS = string.ascii_letters + string.digits + string.punctuation
 POSSIBLE_USERNAME_CHARS = string.ascii_letters + string.digits + "'-_."
 MIN_PASSWORD_LENGTH = 8
+
 
 st.set_page_config(
     page_title="Крипто-аналитика",
@@ -292,17 +293,18 @@ def main():
 
     if st.session_state.logged_in:
         st.write(f"Welcome, {st.session_state.username}!")
+        #появление списка каналов
         selected_channel = st.selectbox("Выберите канал:", choose_channel_option)
         for key, value in data_dict.items():
             if value == selected_channel:
                 selected_id = key
                 break
-        if selected_id == 1:
-            df = pd.DataFrame(data_first, columns=column_names)
-            index_list = [i for i in range (1, len(data_first) + 1)]
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            st.selectbox('Выберите сигнал', index_list)
-            st.write(f"Выбран ID: {selected_id}")
+        #появление списка сигналов
+        df = pd.DataFrame(selected_signals, columns=column_names)
+        index_list = [i for i in range (1, len(selected_signals) + 1)]
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        selected_signal_id = st.selectbox('Выберите сигнал', index_list)
+        st.write(f"Выбраный сигнал: {selected_signal_id}")
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.session_state.username = None
