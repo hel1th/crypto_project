@@ -70,11 +70,6 @@ column_names = [
 ]
 
 
-data_dict = {
-    (item[0]): (f"{item[1]} (Процент успешности: {item[2]}%)") for item in data
-}
-choose_channel_option = list(data_dict.values())
-
 PASSWORD_SALT = os.getenv("PASSWORD_SALT")
 DB_CONFIG = {
     "dbname": os.getenv("DB_NAME"),
@@ -280,6 +275,29 @@ def authentication_page():
                     st.warning("Please enter both username and password.")
 
 
+def get_channel_list() -> list:
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, title, rate FROM channels ORDER BY id;")
+                return cur.fetchall()
+    except Exception as e:
+        print(f"⚠️ Unluck u have an error: {e}")
+
+
+def get_signals_by_channel(channel_id) -> list:
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, symbol, stop_loss, leverage, margin_mode, signal_time, entry_prices, take_profits FROM trading_signals WHERE channel_id = %s ORDER BY signal_time DESC LIMIT 5;",
+                    (channel_id,),
+                )
+                return cur.fetchall()
+    except Exception as e:
+        print(f"⚠️ Unluck u have an error: {e}")
+
+
 def grep_signal(signal_id):
     graphs_sqlq = f"""SELECT
     ts.symbol,
@@ -288,13 +306,12 @@ def grep_signal(signal_id):
     ts.stop_loss,
     jsonb_array_elements(ts.take_profits)::float AS take_profit_target
     FROM trading_signals ts
-    JOIN channels c ON ts.channel_id = c.id
-    WHERE ts.id = {signal_id};"""
+    WHERE ts.id = %s;"""
 
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
-                cur.execute(graphs_sqlq)
+                cur.execute(graphs_sqlq, (signal_id,))
                 return cur.fetchone()
     except Exception as e:
         print(f"⚠️ Unluck u have an error: {e}")
@@ -344,12 +361,19 @@ def main():
     if st.session_state.logged_in:
         st.write(f"Welcome, {st.session_state.username}!")
         # появление списка каналов
+        data = get_channel_list()
+        data_dict = {
+            (item[0]): (f"{item[1]} (Процент успешности: {item[2]}%)") for item in data
+        }
+        choose_channel_option = list(data_dict.values())
+
         selected_channel = st.selectbox("Выберите канал:", choose_channel_option)
         for key, value in data_dict.items():
             if value == selected_channel:
                 selected_id = key
                 break
         # появление списка сигналов
+
         df = pd.DataFrame(selected_signals, columns=column_names)
         index_list = [i for i in range(1, len(selected_signals) + 1)]
         st.dataframe(df, use_container_width=True, hide_index=True)
