@@ -1,18 +1,20 @@
 import hashlib
 import os
-
+import sys
+from streamlit.web import cli as stcli
+from streamlit import runtime
 
 import psycopg2
 from psycopg2 import sql, OperationalError
 import streamlit as st
 from dotenv import load_dotenv
-from .exceptions import *
+from app.frontend.exceptions import *
 from decimal import Decimal
 import datetime
 import string
 import pandas as pd
 from streamlit_extras.stylable_container import stylable_container
-from ..binance.visualization import CryptoSignalVisualizer
+from app.binance.visualization import CryptoSignalVisualizer
 
 load_dotenv()
 
@@ -366,4 +368,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if runtime.exists():
+        main()
+    else:
+        sys.argv = ["streamlit", "run", sys.argv[0]]
+        sys.exit(stcli.main())
