@@ -149,6 +149,7 @@ class CryptoSignalVisualizer:
             if signal_type.lower() in ["short", "sell"]:
                 stop_loss = max(price1, price2)
                 take_profit = min(price1, price2)
+                level_prefix = "SHORT"
             else:
                 stop_loss = min(price1, price2)
                 take_profit = max(price1, price2)
