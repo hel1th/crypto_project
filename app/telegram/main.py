@@ -15,6 +15,7 @@ from telethon import events
 from telethon.tl.types import User, Channel
 from .analyze.msg_process import get_last_msg, get_all_msg, analyze_all_db_msg
 from .logging_config import setup_logging
+from app.binance.API_collection import CryptoDataCollector
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -108,6 +109,11 @@ async def main():
 
     client = await check_auth()
 
+    collector = CryptoDataCollector()
+    try:
+        collector.run()
+    except Exception as e:
+        print(f"You have error: {e}")
     async with client:
         me = await client.get_me()
         print(f"👤 Ваш Telegram: {me.username or me.first_name}")

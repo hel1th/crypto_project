@@ -32,17 +32,23 @@
 ---
 
 ## Установка  
-1. **Клонировать репозиторий**:  
+1. **Клонирование репозитория**:  
    ```bash
    git clone https://gitlab.mai.ru/antygin/crypto_project.git
    cd crypto_project
-2. **Установить зависимости**   
+2. **Установка зависимостей**   
     ```bash
     pip install -r requirements.txt
-3. **Настройка окружения**
-    #### -cоздать файл .env
-    #### -добавить свои API в проект
+3. **Настройка вирутального окружения**
+     - cоздать файл .env по шаблону в .env.example
+     - добавить свои credentials в проект
 
 4. **Запуск приложения**
+   - Запуск парсера сообщений  
     ```bash
-    streamlit run app.py
+    python.exe -B -m app.telegram.main
+    ```
+   - Запуск сайта  
+    ```bash
+    python.exe -B -m app.frontend.website
+    ```  
