@@ -319,6 +319,40 @@ def grep_signal(signal_id):
         return None
 
 
+def update_channel_rates() -> None:
+    update_sql = """
+    UPDATE channels
+    SET rate = COALESCE((
+        SELECT 
+            ROUND(
+                ((COUNT(*) FILTER (WHERE a.result = 'success')::NUMERIC / 
+                  NULLIF(COUNT(*), 0)) * 100)::NUMERIC,
+                2
+            )
+        FROM trading_signals ts
+        JOIN analytics a ON a.trade_id = ts.id
+        WHERE ts.channel_id = channels.id
+    ), 0)
+    WHERE EXISTS (
+        SELECT 1
+        FROM trading_signals ts
+        JOIN analytics a ON a.trade_id = ts.id
+        WHERE ts.channel_id = channels.id
+    )
+    OR rate IS NOT NULL;
+    """
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute(update_sql)
+                conn.commit()
+        st.success("Успешно обновлены рейтинги каналов!")
+    except OperationalError as e:
+        st.error(f"Ошибка подключения к базе данных: {e}")
+    except Exception as e:
+        st.error(f"Ошибка при обновлении рейтингов: {e}")
+
+
 def main():
     # Стили заголовков
     with stylable_container(
@@ -365,6 +399,7 @@ def main():
     if st.session_state.logged_in:
         st.write(f"Welcome, {st.session_state.username}!")
 
+        update_channel_rates()
         data = get_channel_list()
         if not data:
             st.warning("Каналы не найдены. Проверьте подключение к базе данных.")
