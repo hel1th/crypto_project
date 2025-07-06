@@ -1,11 +1,11 @@
-import psycopg2
+from app.config import DB_CONFIG, API_KEY_LLM
 from ast import literal_eval
-import gigachat
-from gigachat.models import Chat, Messages, MessagesRole
 from datetime import datetime
-import logging
-from ..config import DB_CONFIG, API_KEY_LLM
+from gigachat.models import Chat, Messages, MessagesRole
+import gigachat
 import json
+import logging
+import psycopg2
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 def llm_parse_and_insert(message_id, channel_id, text, signal_time):
     client = gigachat.GigaChat(credentials=API_KEY_LLM, verify_ssl_certs=False)
 
-    prompt = f"""Parse message '{text}', forming a dict message_parse = {{'coin': str without #, 'timeframe': str,
-        'signal_type': str, 'entry_prices': list, 'take_profit_targets': list, 'stop_loss': float, 
-        'leverage': int, 'margin_mode': str, 'channel': str}}. Return only dict as a variable message_parse. 
+    prompt = f"""Parse message '{text}', forming a dict message_parse = {{'coin': str without # ALWAYS TWO COINS UPPERCASE, 'timeframe': str,
+        'signal_type': str ONLY LONG OR SHORT ONLY UPPERCASE, 'entry_prices': list, 'take_profit_targets': list, 'stop_loss': float, 
+        'leverage': int, 'margin_mode': str, 'channel': str}}. Return only dict as a variable message_parse.
         stop_loss must be a single float value. Do not add extra symbols."""
 
     messages = [
@@ -118,11 +118,11 @@ def llm_parse_and_insert(message_id, channel_id, text, signal_time):
                     (
                         message_id,
                         channel_id,
-                        parsed["coin"],
-                        parsed["signal_type"],
+                        str(parsed["coin"]).upper(),
+                        str(parsed["signal_type"]).lower(),
                         stop_loss_value,
                         parsed["leverage"],
-                        parsed["margin_mode"],
+                        str(parsed["margin_mode"]).lower(),
                         signal_time,
                         entry_prices_json,
                         take_profits_json,
