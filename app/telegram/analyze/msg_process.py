@@ -1,7 +1,7 @@
-import psycopg2
-import logging
-from ..config import DB_CONFIG
 from .parse_messages import llm_parse_and_insert
+from app.config import DB_CONFIG
+import logging
+import psycopg2
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +10,7 @@ def get_all_msg() -> tuple:
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
-                cur.execute("""SELECT id, channel_id, text, date FROM messages""")
+                cur.execute("SELECT id, channel_id, text, date FROM messages")
                 msg_entities = cur.fetchall()
                 return msg_entities
     except Exception as e:
@@ -18,7 +18,23 @@ def get_all_msg() -> tuple:
         return ()  # Возвращаем пустой кортеж в случае ошибки
 
 
-def get_last_msg() -> tuple:
+def get_not_proccesed_msgs() -> tuple:
+    try:
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT msg.id, msg.channel_id, msg.text, msg.date
+                    FROM messages msg
+                    LEFT JOIN trading_signals ts ON ts.id = msg.id WHERE ts.id is NULL;"""
+                )
+                msg_entities = cur.fetchall()
+                return msg_entities
+    except Exception as e:
+        logger.error(f"Ошибка в get_all_msg: {e}")
+        return ()
+
+
+def get_last_msg() -> tuple | None:
     try:
         with psycopg2.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
@@ -29,11 +45,11 @@ def get_last_msg() -> tuple:
                 return msg_entity
     except Exception as e:
         logger.error(f"Ошибка в get_last_msg: {e}")
-        return None  # Возвращаем None в случае ошибки
+        return None
 
 
 def analyze_all_db_msg(msg_entities):
-    if not msg_entities:  # Проверка на пустое или None
+    if not msg_entities:
         logger.warning("Нет сообщений для анализа")
         return
     for msg in msg_entities:

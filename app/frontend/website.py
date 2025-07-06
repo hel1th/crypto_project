@@ -1,63 +1,26 @@
-import hashlib
-import os
-import sys
-from streamlit.web import cli as stcli
-from streamlit import runtime
-import streamlit.components.v1 as components
-import psycopg2
-from psycopg2 import sql, OperationalError
-import streamlit as st
-from dotenv import load_dotenv
+from typing import List
+from app.binance.candles import process_signal_row
+from app.binance.plotter import plot_candles_html
+from app.config import INTERVALS_TO_DELTA, PASSWORD_SALT, DB_CONFIG
 from app.frontend.exceptions import *
 from decimal import Decimal
-import datetime
-import string
-import pandas as pd
+from psycopg import OperationalError
+from streamlit import runtime
 from streamlit_extras.stylable_container import stylable_container
-from app.binance.visualization import CryptoSignalVisualizer
+from streamlit.web import cli as stcli
+import asyncio
+import hashlib
+import os
+import pandas as pd
+import psycopg
+import streamlit as st
+import streamlit.components.v1 as components
+import string
+import sys
 
-load_dotenv()
+from app.types import Candle, Signal
 
-data = [(1, "Free bitcoin", 50), (2, "Crypto Humster", 80)]
-visualizer = CryptoSignalVisualizer()
-
-selected_signals = [
-    (
-        1,
-        "SPELLUSDT",
-        "Short",
-        Decimal("0.0006813"),
-        10,
-        "Isolated",
-        datetime.datetime(2025, 6, 2, 19, 43, 43),
-        Decimal("0.000641"),
-        Decimal("0.0006372"),
-    ),
-    (
-        2,
-        "DEXEUSDT",
-        "Long",
-        Decimal("13.429084"),
-        10,
-        "Isolated",
-        datetime.datetime(2025, 6, 2, 19, 43, 34),
-        Decimal("14.332"),
-        Decimal("14.414305"),
-    ),
-    (
-        3,
-        "ATAUSDT",
-        "Long",
-        Decimal("0.0462"),
-        10,
-        "Isolated",
-        datetime.datetime(2025, 6, 2, 19, 43, 34),
-        Decimal("0.0494"),
-        Decimal("0.0496"),
-    ),
-]
-
-column_names = [
+COLUMN_NAMES = [
     "ID",
     "Symbol",
     "Action",
@@ -67,23 +30,16 @@ column_names = [
     "Signal time",
     "Entry price",
     "Take profit",
+    "Close time",
 ]
 
 
-PASSWORD_SALT = os.getenv("PASSWORD_SALT")
-DB_CONFIG = {
-    "dbname": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT"),
-}
 POSSIBLE_PASSWORD_CHARS = string.ascii_letters + string.digits + string.punctuation
 POSSIBLE_USERNAME_CHARS = string.ascii_letters + string.digits + "'-_."
 MIN_PASSWORD_LENGTH = 8
 
 
-st.set_page_config(page_title="Крипто-аналитика", page_icon="💰", layout="centered")
+st.set_page_config(page_title="Крипто-аналитика", page_icon="🐹", layout="wide")
 
 
 def hash_password(password, salt=None):
@@ -127,7 +83,7 @@ def register_user(username, password):
 
         salt, password_hash = hash_password(password)
 
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
                     "INSERT INTO users (email, hashed_password, salt) VALUES (%s, %s, %s)",
@@ -178,7 +134,7 @@ def login_user(username, password):
 
 def is_user_exists(username) -> bool:
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT email FROM users WHERE email = %s",
@@ -196,7 +152,7 @@ def is_user_exists(username) -> bool:
 
 def get_user_data(username):
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT email, hashed_password, salt FROM users WHERE email = %s",
@@ -275,24 +231,27 @@ def authentication_page():
                     st.warning("Please enter both username and password.")
 
 
-def get_channel_list() -> list:
+def get_channel_list():
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id, title, rate FROM channels ORDER BY id;")
-                return cur.fetchall()
+                cur.execute("SELECT id, title, rate FROM channels ORDER BY id DESC;")
+                rows = cur.fetchall()
+                return rows
     except Exception as e:
         st.error(f"Ошибка при получении списка каналов: {e}")
         return []
 
 
-def get_signals_by_channel(channel_id) -> list:
+def get_signals_by_channel(channel_id, limit: int = 5) -> list:
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, symbol, action, stop_loss, leverage, margin_mode, signal_time, entry_prices, take_profits FROM trading_signals WHERE channel_id = %s ORDER BY signal_time DESC LIMIT 5;",
-                    (channel_id,),
+                    "SELECT id, symbol, action, stop_loss, leverage, margin_mode, signal_time, entry_prices, take_profits, close_time \
+                        FROM trading_signals WHERE channel_id = %s \
+                        ORDER BY id DESC LIMIT %s;",
+                    (channel_id, limit),
                 )
                 return cur.fetchall()
     except Exception as e:
@@ -300,20 +259,14 @@ def get_signals_by_channel(channel_id) -> list:
         return []
 
 
-def grep_signal(signal_id):
-    graphs_sqlq = """SELECT
-        ts.symbol,
-        ts.signal_time,
-        ts.action,
-        ts.stop_loss,
-        (ts.take_profits->0)::float AS take_profit
-    FROM trading_signals ts
-    WHERE ts.id = %s;"""
+def grep_signal_row(signal_id: int | str) -> Signal | None:
+    graphs_sqlq = "SELECT * FROM trading_signals WHERE id = %s"
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(graphs_sqlq, (signal_id,))
-                return cur.fetchone()
+                row = cur.fetchone()
+                return Signal.from_row(row) if row else None
     except Exception as e:
         st.error(f"Ошибка при получении данных сигнала: {e}")
         return None
@@ -342,11 +295,10 @@ def update_channel_rates() -> None:
     OR rate IS NOT NULL;
     """
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(update_sql)
                 conn.commit()
-        st.success("Успешно обновлены рейтинги каналов!")
     except OperationalError as e:
         st.error(f"Ошибка подключения к базе данных: {e}")
     except Exception as e:
@@ -399,63 +351,65 @@ def main():
     if st.session_state.logged_in:
         st.write(f"Welcome, {st.session_state.username}!")
 
-        update_channel_rates()
+        # TODO
+        # update_channel_rates()
         data = get_channel_list()
         if not data:
-            st.warning("Каналы не найдены. Проверьте подключение к базе данных.")
+            st.warning("Channels not found. Check the database connection.")
             return
 
-        data_dict = {
-            item[0]: f"{item[1]} (Процент успешности: {item[2]}%)" for item in data
-        }
+        # TODO Temp removed
+        # data_dict = {
+        #     item[0]: f"{item[1]} (Процент успешности: {item[2]}%)" for item in data
+        # }
+        data_dict = {item[0]: f"{item[1]}" for item in data}
         choose_channel_option = list(data_dict.values())
 
-        selected_channel = st.selectbox("Выберите канал:", choose_channel_option)
+        selected_channel = st.selectbox("Select the channel", choose_channel_option)
         selected_id = next(
             key for key, value in data_dict.items() if value == selected_channel
         )
 
-        selected_signals = get_signals_by_channel(selected_id)
-        if not selected_signals:
-            st.warning("Сигналы для выбранного канала не найдены.")
+        channel_signals = get_signals_by_channel(selected_id)
+        if not channel_signals:
+            st.warning("Signal for selected channel not found")
             return
 
-        df = pd.DataFrame(selected_signals, columns=column_names)
+        df = pd.DataFrame(channel_signals, columns=COLUMN_NAMES)
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-        index_list = [el[0] for el in selected_signals]
-        selected_signal_id = st.selectbox("Выберите сигнал", index_list)
-        st.write(f"Выбранный сигнал: {selected_signal_id}")
+        index_list = [
+            f"{el[1]} from channel: {selected_channel} id={el[0]}"
+            for el in channel_signals
+        ]
+        selected_signal_str = st.selectbox("Select the signal", index_list)
+        selected_signal_id = int(selected_signal_str.split("=")[-1])
+        st.write(f"Selected signal: {selected_signal_id}")
 
-        data_for_graphic = grep_signal(selected_signal_id)
-        if data_for_graphic:
-            try:
-                (
-                    symbol,
-                    signal_time,
-                    signal_type,
-                    stop_loss,
-                    take_profit,
-                ) = data_for_graphic
-                path = visualizer.save_signal_chart(
-                    symbol,
-                    signal_time,
-                    signal_type,
-                    stop_loss,
-                    take_profit,
-                )
-                if path:
-                    components.html(path, height=4000)
-                else:
-                    st.error("Не удалось сгенерировать график.")
-            except TypeError as e:
-                st.error(
-                    f"Ошибка в визуализации: неверное количество аргументов или тип данных ({e})."
-                )
-            except Exception as e:
-                st.error(f"Ошибка при генерации графика: {e}")
+        selected_signal_data = grep_signal_row(selected_signal_id)
+
+        selected_candle_interval = st.selectbox(
+            "Select the interval", INTERVALS_TO_DELTA.keys()
+        )
+        st.write(f"Selected interval: {selected_candle_interval}")
+        if selected_signal_data:
+            with st.spinner("Loading candles from Binance..."):
+                try:
+                    asyncio.run(
+                        process_signal_row(
+                            selected_signal_data, interval=selected_candle_interval
+                        )
+                    )
+                    st.success("Candles successfully loaded!")
+                    show_plot(
+                        signal_data=selected_signal_data,
+                        signal_id=selected_signal_id,
+                        interval=selected_candle_interval,
+                    )
+                except Exception as e:
+                    st.error(f"Error while loading candles: {e}")
         else:
-            st.error("Данные для выбранного сигнала не найдены.")
+            st.error("Could not receive signal data")
 
         if st.button("Logout"):
             st.session_state.logged_in = False
@@ -463,6 +417,49 @@ def main():
             st.rerun()
     else:
         authentication_page()
+
+
+def show_plot(signal_data: Signal, signal_id: int, interval: str):
+    try:
+        candles = list()
+        with psycopg.connect(**DB_CONFIG) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT * FROM candles c
+                    JOIN 
+                        trading_signals ts ON c.symbol = ts.symbol
+                    WHERE 
+                        ts.id = %s AND c.interval = %s AND c.time >= ts.signal_time
+                    ORDER BY 
+                        c.time""",
+                    (signal_id, interval),
+                )
+                rows = cur.fetchall()
+        candles: List[Candle] = [Candle.from_row(row) for row in rows]
+        st.write(len(candles))
+
+        plot_data = plot_candles_html(
+            raw_candles=candles,
+            symbol=signal_data.symbol,
+            signal_time=signal_data.signal_time,
+            entry_prices=signal_data.entry_prices,
+            stop_loss=signal_data.stop_loss,
+            take_profits=signal_data.take_profits,
+            signal_id=signal_data.id,
+        )
+        if plot_data:
+            components.html(
+                plot_data,
+                height=800,
+            )
+        else:
+            st.error("Failed to draw chart")
+    except TypeError as e:
+        st.error(
+            f"Error in visualization: wrong number of arguments or data type ({e})."
+        )
+    except Exception as e:
+        st.error(f"Error while drawing a graphic: {e}")
 
 
 if __name__ == "__main__":

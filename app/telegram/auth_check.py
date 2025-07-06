@@ -1,13 +1,13 @@
-import logging
-from telethon import TelegramClient
-from .config import TG_SESSION_PATH, TG_API_ID, TG_API_HASH
 from .logging_config import setup_logging
+from app.config import TG_SESSION_PATH, TG_API_ID, TG_API_HASH
+from telethon import TelegramClient
+import logging
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
 
-async def check_auth():
+async def check_auth() -> TelegramClient:
     print((TG_SESSION_PATH, TG_API_ID, TG_API_HASH))
     client = TelegramClient(TG_SESSION_PATH, TG_API_ID, TG_API_HASH)
 
