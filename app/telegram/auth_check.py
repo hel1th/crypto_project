@@ -13,11 +13,11 @@ async def check_auth() -> TelegramClient:
 
     await client.connect()
     if not await client.is_user_authorized():
-        print("📲 Требуется авторизация. Введите номер и код.")
+        print("📲 Need authorization. Enter the number and the code.")
         await client.start()
         me = await client.get_me()
-        print(f"✅ Успешно авторизован как {me.username or me.first_name}")
+        print(f"✅ Successfully authorized as {me.username or me.first_name}")
     else:
-        print("🔐 Уже авторизован.")
+        print("🔐 Already authorized.")
     await client.disconnect()
     return client

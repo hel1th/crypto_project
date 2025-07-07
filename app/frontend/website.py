@@ -39,7 +39,7 @@ POSSIBLE_USERNAME_CHARS = string.ascii_letters + string.digits + "'-_."
 MIN_PASSWORD_LENGTH = 8
 
 
-st.set_page_config(page_title="Крипто-аналитика", page_icon="🐹", layout="wide")
+st.set_page_config(page_title="Cryptanalysis", page_icon="🐹", layout="wide")
 
 
 def hash_password(password, salt=None):
@@ -128,7 +128,7 @@ def login_user(username, password):
             st.error("Incorrect password.")
             return False
     else:
-        st.error("User not found.")
+        st.error("User is not found.")
         return False
 
 
@@ -161,13 +161,13 @@ def get_user_data(username):
                 user = cur.fetchone()
 
                 if user is None:
-                    raise ValueError(f"Пользователь с email '{username}' не найден")
+                    raise ValueError(f"User with email '{username}' is not found")
 
                 return user
     except ValueError:
         return None
     except OperationalError as e:
-        raise RuntimeError(f"Ошибка подключения к базе данных {e}")
+        raise RuntimeError(f"An error with connection to database: {e}")
 
 
 def authentication_page():
@@ -239,7 +239,7 @@ def get_channel_list():
                 rows = cur.fetchall()
                 return rows
     except Exception as e:
-        st.error(f"Ошибка при получении списка каналов: {e}")
+        st.error(f"An error with getting the list of channels occurred: {e}")
         return []
 
 
@@ -255,7 +255,7 @@ def get_signals_by_channel(channel_id, limit: int = 5) -> list:
                 )
                 return cur.fetchall()
     except Exception as e:
-        st.error(f"Ошибка при получении сигналов: {e}")
+        st.error(f"An error with getting signals: {e}")
         return []
 
 
@@ -268,7 +268,7 @@ def grep_signal_row(signal_id: int | str) -> Signal | None:
                 row = cur.fetchone()
                 return Signal.from_row(row) if row else None
     except Exception as e:
-        st.error(f"Ошибка при получении данных сигнала: {e}")
+        st.error(f"An error with getting data from signal: {e}")
         return None
 
 
@@ -300,9 +300,9 @@ def update_channel_rates() -> None:
                 cur.execute(update_sql)
                 conn.commit()
     except OperationalError as e:
-        st.error(f"Ошибка подключения к базе данных: {e}")
+        st.error(f"An error with connection to database: {e}")
     except Exception as e:
-        st.error(f"Ошибка при обновлении рейтингов: {e}")
+        st.error(f"An  error with rating update: {e}")
 
 
 def main():
@@ -317,7 +317,7 @@ def main():
         }
         """,
     ):
-        st.markdown("# 📈 Аналитика криптовалют")
+        st.markdown("# 📈 Cryptanalysis")
     with stylable_container(
         key="description",
         css_styles="""
@@ -329,7 +329,7 @@ def main():
         }
         """,
     ):
-        st.markdown("# Следи за курсом самых популярных криптовалют")
+        st.markdown("# Follow the rates of popular cryptocurrencies!")
     st.markdown(
         """
     <style>

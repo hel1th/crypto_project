@@ -33,19 +33,19 @@ async def setup_channels(client, conn, channels_input):
             channel_id = get_or_create_channel(conn, channel, entity.title)
             channels_to_parse.append((channel, channel_id))
         except Exception as e:
-            logger.error(f"Не удалось добавить канал {channel}: {e}")
-            print(f"Не удалось добавить канал {channel}: {e}")
+            logger.error(f"Cannot add channel {channel}: {e}")
+            print(f"Cannot add channel {channel}: {e}")
     return channels_to_parse
 
 
 async def run_parser(client, conn, channels_to_parse, limit):
     """Run the parser for historical messages."""
     for channel, channel_id in channels_to_parse:
-        print(f"⏳ Парсим {limit} прошлых сообщений из канала {channel}...")
+        print(f"⏳ Parsing {limit} last messages from channel {channel}...")
         messages = await fetch_messages(client, conn, channel, channel_id, limit)
         if messages:
             save_batch_to_db(messages, channel)
-        print(f"✅ Cохранено {len(messages)} прошлых сообщений из канала {channel}")
+        print(f"✅ Saved {len(messages)} last messages from channel {channel}")
 
 
 async def subscribe_to_channels(client, channels_to_parse):
@@ -56,8 +56,8 @@ async def subscribe_to_channels(client, channels_to_parse):
             entity = await client.get_entity(channel)
             entities.append((channel, entity, channel_id))
         except Exception as e:
-            logger.error(f"Ошибка при получении сущности канала {channel}: {e}")
-            print(f"Ошибка при получении сущности канала {channel}: {e}")
+            logger.error(f"An error with getting the entity of channel {channel}: {e}")
+            print(f"An error with getting the entity of channel {channel}: {e}")
 
     for channel, entity, channel_id in entities:
         client.add_event_handler(
@@ -72,14 +72,14 @@ async def handle_new_message(event, channel, channel_id):
     """Handle a new message event, processing only forwarded messages from other channels."""
     if not event.message.message or not isinstance(event.chat, Channel):
         logger.debug(
-            f"Пропущено сообщение {event.message.id}: отсутствует текст или не из канала"
+            f"Skipped the message {event.message.id}: there is no text or not from channel."
         )
         return
 
     if not event.message.fwd_from or not isinstance(
         event.message.fwd_from.from_id, PeerChannel
     ):
-        logger.debug(f"Пропущено сообщение {event.message.id}: не пересылка из канала")
+        logger.debug(f"Skipped message {event.message.id}: is not forwarded from channel")
         return
 
     author = None
@@ -120,7 +120,7 @@ async def handle_new_message(event, channel, channel_id):
             )
     except Exception as e:
         logger.error(
-            f"Ошибка при получении оригинального канала для сообщения {event.message.id}: {e}"
+            f"An error with getting original channel for message {event.message.id}: {e}"
         )
         author = (
             event.message.fwd_from.from_name or event.message.post_author or "Unknown"
@@ -139,7 +139,7 @@ async def handle_new_message(event, channel, channel_id):
     if last_msg and isinstance(last_msg, (tuple, list)):
         analyze_all_db_msg([last_msg])
     else:
-        logger.warning(f"Не удалось проанализировать последнее сообщение: {last_msg}")
+        logger.warning(f"Cannot analyse last message: {last_msg}")
 
 
 async def main():
@@ -147,7 +147,7 @@ async def main():
     session_file = f"{TG_SESSION_PATH}.session"
     if not os.path.exists(session_file):
         print(
-            f"Файл сессии {session_file} не найден. Запустите session_saver.py для создания новой сессии."
+            f"The file of the session {session_file} is not found. Run session_saver.py to create new session."
         )
         return
 
@@ -155,28 +155,28 @@ async def main():
 
     async with client:
         me = await client.get_me()
-        print(f"Ваш Telegram: {me.username or me.first_name}")
+        print(f"Your Telegram: {me.username or me.first_name}")
 
         channels_input = input(
-            "Введите список каналов через запятую (e.g. @fr33_btc): "
+            "Enter the list of channels separated by commas (e.g. @fr33_btc): "
         )
         input_channels = [
             channel.strip() for channel in channels_input.split(",") if channel.strip()
         ]
         if not input_channels:
-            print("Не указаны каналы для обработки.")
+            print("No channels to parse.")
             return
 
         with psycopg.connect(**DB_CONFIG) as conn:
             try:
                 channels_to_parse = await setup_channels(client, conn, channels_input)
                 if not channels_to_parse:
-                    print("Нет каналов для парсинга.")
+                    print("No channels to parse.")
                     return
 
                 limit = int(
                     input(
-                        f"Количество сообщений для начального парсинга на канал ({LIMIT} по умолчанию): "
+                        f"The number of messages for start parsing for channel ({LIMIT} by default): "
                     )
                     or LIMIT
                 )
@@ -186,23 +186,23 @@ async def main():
                 if messages:
                     analyze_all_db_msg(messages)
                 else:
-                    print("Нет данных для анализа после парсинга.")
+                    print("No data for analysis after parsing.")
 
                 await subscribe_to_channels(client, channels_to_parse)
                 print(
-                    f"Ожидание новых сообщений в каналах: {', '.join(c[0] for c in channels_to_parse)}..."
+                    f"Waiting for new messages in channels: {', '.join(c[0] for c in channels_to_parse)}..."
                 )
                 await client.run_until_disconnected()
             except Exception as e:
-                logger.error(f"Ошибка: {e}")
-                print(f"Ошибка: {e}")
+                logger.error(f"Error: {e}")
+                print(f"Error: {e}")
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Остановлено пользователем.")
+        print("Stopped by user.")
     except Exception as e:
-        logger.error(f"Ошибка: {e}")
-        print(f"Ошибка: {e}")
+        logger.error(f"Errior {e}")
+        print(f"Error: {e}")
