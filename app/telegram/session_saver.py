@@ -9,7 +9,7 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 custom_suffix = input(
-    "Введите суффикс сессии (оставьте пустым для использования из .env, например _vlad): "
+    "Enter the suffix of the session (leave empty for using from .env, for example _vlad): "
 ) or os.getenv("TG_SESSION_SUFFIX", "")
 if custom_suffix:
     session_name = os.path.basename(TG_SESSION_PATH).replace(
@@ -21,15 +21,15 @@ client = TelegramClient(TG_SESSION_PATH, TG_API_ID, TG_API_HASH)
 
 
 async def main():
-    print(f"Авторизация в Telegram с сессией: {TG_SESSION_PATH}.session...")
+    print(f"Authorization in Telegram with session: {TG_SESSION_PATH}.session...")
     try:
         await client.start()
         me = await client.get_me()
-        print(f"✅ Успешно авторизован как {me.username or me.first_name}")
-        print(f"Сессия сохранена: {TG_SESSION_PATH}.session")
+        print(f"✅ Successfully authorized as {me.username or me.first_name}")
+        print(f"Session is saved: {TG_SESSION_PATH}.session")
         await client.disconnect()
     except Exception as e:
-        print(f"Ошибка при авторизации: {e}")
+        print(f"Authorization error: {e}")
         await client.disconnect()
 
 
@@ -37,6 +37,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Остановлено пользователем.")
+        print("Stopped by user.")
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"Error: {e}")

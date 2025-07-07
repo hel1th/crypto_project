@@ -53,13 +53,13 @@ async def fetch_messages(
                 or "premium" in msg.message.lower()
             ):
                 logger.debug(
-                    f"Пропущено сообщение {msg.id}: отсутствует текст или содержит '% profit'/'premium'"
+                    f"Skipped message {msg.id}: no text or there are '% profit'/'premium'"
                 )
                 continue
 
             # Пропускаем сообщения, которые не являются пересылками из каналов
             if not msg.fwd_from or not isinstance(msg.fwd_from.from_id, PeerChannel):
-                logger.debug(f"Пропущено сообщение {msg.id}: не пересылка из канала")
+                logger.debug(f"Skipped message {msg.id}: is not forwarded from channel")
                 continue
 
             author = None
@@ -91,7 +91,7 @@ async def fetch_messages(
                 author = msg.fwd_from.from_name or msg.post_author or "Unknown"
             except Exception as e:
                 logger.error(
-                    f"Ошибка при получении оригинального канала для сообщения {msg.id}: {e}"
+                    f"An error with getting original channel for message {msg.id}: {e}"
                 )
                 author = msg.fwd_from.from_name or msg.post_author or "Unknown"
                 continue  # Пропускаем сообщение, если канал недоступен
@@ -106,20 +106,20 @@ async def fetch_messages(
                 }
             )
             logger.debug(
-                f"Добавлено сообщение: channel_id={original_channel_id}, message_id={message_id}, author={author}"
+                f"Added message: channel_id={original_channel_id}, message_id={message_id}, author={author}"
             )
         return messages
     except ChannelPrivateError:
-        logger.error(f"Канал {channel_username} является приватным.")
-        print(f"Канал {channel_username} является приватным.")
+        logger.error(f"The channel {channel_username} is private.")
+        print(f"The channel {channel_username} is private.")
         return []
     except ChannelInvalidError:
-        logger.error(f"Канал {channel_username} не найден.")
-        print(f"Канал {channel_username} не найден.")
+        logger.error(f"The channel {channel_username} is not found.")
+        print(f"The channel {channel_username} is not found.")
         return []
     except Exception as e:
-        logger.error(f"Ошибка при получении сообщений из {channel_username}: {e}")
-        print(f"Ошибка при получении сообщений из {channel_username}: {e}")
+        logger.error(f"An error with getting messages from {channel_username}: {e}")
+        print(f"An error with getting messages from {channel_username}: {e}")
         return []
 
 
@@ -147,12 +147,12 @@ def save_batch_to_db(messages, channel):
                 conn.commit()
                 if cur.rowcount < len(messages):
                     print(
-                        f"Часть сообщений из канала {channel} не сохранена (дубликаты?)."
+                        f"Some messages from channel {channel} is not saved (duplicates?)."
                     )
                 else:
-                    print(f"Сохранено {cur.rowcount} сообщений из канала {channel}")
+                    print(f"Saved {cur.rowcount} messages from channel {channel}")
             except Exception as e:
-                print(f"Ошибка при сохранении в БД (канал {channel}): {e}")
+                print(f"AN error with saving to database (channel {channel}): {e}")
 
 
 def save_single_to_db(msg, channel):
@@ -175,8 +175,8 @@ def save_single_to_db(msg, channel):
                 cur.execute(query, data)
                 conn.commit()
                 if cur.rowcount > 0:
-                    print(f"Новое сообщение сохранено (канал: {channel})")
+                    print(f"New message is saved (channel: {channel})")
             except Exception as e:
                 print(
-                    f"Ошибка при сохранении нового сообщения из канала {channel}: {e}"
+                    f"An error with saving new message from channel {channel}: {e}"
                 )
