@@ -1,14 +1,14 @@
 from .parse_messages import llm_parse_and_insert
 from app.config import DB_CONFIG
 import logging
-import psycopg2
+import psycopg
 
 logger = logging.getLogger(__name__)
 
 
 def get_all_msg() -> tuple:
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT id, channel_id, text, date FROM messages")
                 msg_entities = cur.fetchall()
@@ -18,9 +18,9 @@ def get_all_msg() -> tuple:
         return ()  # Возвращаем пустой кортеж в случае ошибки
 
 
-def get_not_proccesed_msgs() -> tuple:
+def get_not_proccesed_msgs():
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """SELECT msg.id, msg.channel_id, msg.text, msg.date
@@ -36,7 +36,7 @@ def get_not_proccesed_msgs() -> tuple:
 
 def get_last_msg() -> tuple | None:
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     """SELECT id, channel_id, text, date FROM messages ORDER BY id DESC LIMIT 1"""
