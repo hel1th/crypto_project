@@ -28,17 +28,18 @@ TG_API_ID: str = os.getenv("TG_API_ID")  # type: ignore
 TG_API_HASH: str = os.getenv("TG_API_HASH")  # type: ignore
 TG_BASE_SESSION_NAME = os.getenv(
     "TG_SESSION_NAME", "my_app_session"
-)  # Базовое имя сессии
+)  # Default session name
 
 TG_SESSION_SUFFIX = os.getenv("TG_SESSION_SUFFIX", "")
 TG_SESSION_NAME = f"{TG_BASE_SESSION_NAME}{TG_SESSION_SUFFIX}"
 
-# Путь к папке сессий
+# Session dir path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SESSIONS_DIR = os.path.join(BASE_DIR, "telegram/sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 TG_SESSION_PATH = os.path.join(SESSIONS_DIR, TG_SESSION_NAME)
 
+# Available
 INTERVALS_TO_DELTA: Dict[str, timedelta] = {
     "1h": timedelta(hours=1),
     "30m": timedelta(minutes=30),

@@ -181,9 +181,9 @@ def authentication_page():
             key="register_button_container",
             css_styles="""
             button {
-                background-color: #533B77; 
-                border: 2px solid #6A48D7;
-                color: #181538;
+                background-color: #260C40;
+                border: 2px solid #260C40;
+                color: #A39CFF;
                 padding: 10px 20px;
                 text-align: center;
                 text-decoration: none;
@@ -206,8 +206,8 @@ def authentication_page():
             key="login_button_container",
             css_styles="""
             button {
-                background-color: #0d0d0d;
-                border: 2px solid #6A48D7;
+                background-color: #0D0D0D;
+                border: 2px solid #563BAA;
                 color: #6A48D7;
                 padding: 10px 20px;
                 text-align: center;
