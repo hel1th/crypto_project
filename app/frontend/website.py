@@ -439,7 +439,7 @@ def show_plot(signal_data: Signal, signal_id: int, interval: str):
         st.write(len(candles))
 
         plot_data = plot_candles_html(
-            raw_candles=candles,
+            candles=candles,
             symbol=signal_data.symbol,
             signal_time=signal_data.signal_time,
             entry_prices=signal_data.entry_prices,

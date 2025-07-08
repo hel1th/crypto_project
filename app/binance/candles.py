@@ -1,6 +1,5 @@
 from app.config import DB_CONFIG, TZ, INTERVALS_TO_DELTA
 from app.types import Candle, Signal
-from blinker import Signal
 from datetime import datetime, timedelta, timezone
 from dateutil.parser import parse
 from typing import Dict, List, Optional, Tuple, Union
