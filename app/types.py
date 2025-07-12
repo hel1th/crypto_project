@@ -26,6 +26,8 @@ class Signal:
     entry_prices: List[float]
     take_profits: List[float]
     close_time: Optional[datetime]
+    result: Optional[str]
+    pnl: Optional[float]
 
     @classmethod
     def from_row(cls, row: tuple) -> "Signal":
@@ -43,6 +45,8 @@ class Signal:
             entry_prices=row[10],
             take_profits=row[11],
             close_time=row[12],
+            result=row[13],
+            pnl=row[14],
         )
 
 

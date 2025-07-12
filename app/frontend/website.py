@@ -1,7 +1,7 @@
 from typing import List
 from app.binance.candles import process_signal_row
 from app.binance.plotter import plot_candles_html
-from app.config import INTERVALS_TO_DELTA, PASSWORD_SALT, DB_CONFIG
+from app.config import PASSWORD_SALT, DB_CONFIG
 from app.frontend.exceptions import *
 from decimal import Decimal
 from psycopg import OperationalError
@@ -17,9 +17,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 import string
 import sys
-
 from app.types import Candle, Signal
 
+INTERVAL: str = "1m"
 COLUMN_NAMES = [
     "ID",
     "Symbol",
@@ -30,7 +30,7 @@ COLUMN_NAMES = [
     "Signal time",
     "Entry price",
     "Take profit",
-    "Close time",
+    "Pnl (for 100$)",
 ]
 
 
@@ -180,20 +180,25 @@ def authentication_page():
         with stylable_container(
             key="register_button_container",
             css_styles="""
-            button {
-                background-color: #260C40;
-                border: 2px solid #260C40;
-                color: #A39CFF;
-                padding: 10px 20px;
-                text-align: center;
-                text-decoration: none;
-                display: inline-block;
-                font-size: 16px;
-                margin: 4px 2px;
-                cursor: pointer;
-                border-radius: 5px;
-                width: 100%;
-            }
+                button {
+                    background-color: #260C40 !important;
+                    border: 2px solid #260C40 !important;
+                    color: #A39CFF !important;
+                    padding: 10px 20px !important;
+                    text-align: center !important;
+                    text-decoration: none !important;
+                    display: inline-block !important;
+                    font-size: 16px !important;
+                    margin: 4px 2px !important;
+                    cursor: pointer !important;
+                    border-radius: 5px !important;
+                    width: 100% !important;
+                }
+
+                button:hover {
+                    border: 2px solid #956BD6 !important;
+                    color: #956BD6 !important;
+                }
             """,
         ):
             if st.button("Register"):
@@ -248,7 +253,7 @@ def get_signals_by_channel(channel_id, limit: int = 5) -> list:
         with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT id, symbol, action, stop_loss, leverage, margin_mode, signal_time, entry_prices, take_profits, close_time \
+                    "SELECT id, symbol, action, stop_loss, leverage, margin_mode, signal_time, entry_prices, take_profits, pnl \
                         FROM trading_signals WHERE channel_id = %s \
                         ORDER BY id DESC LIMIT %s;",
                     (channel_id, limit),
@@ -376,7 +381,22 @@ def main():
             return
 
         df = pd.DataFrame(channel_signals, columns=COLUMN_NAMES)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        # Стили для автоматической ширины колонок
+        style = """
+            <style>
+            .dataframe {
+                width: 100% !important;
+            }
+            .dataframe th, .dataframe td {
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                max-width: 200px !important;
+            }
+            </style>
+        """
+        st.markdown(style, unsafe_allow_html=True)
+        st.dataframe(df)
 
         index_list = [
             f"{el[1]} from channel: {selected_channel} id={el[0]}"
@@ -387,24 +407,22 @@ def main():
         st.write(f"Selected signal: {selected_signal_id}")
 
         selected_signal_data = grep_signal_row(selected_signal_id)
-
-        selected_candle_interval = st.selectbox(
-            "Select the interval", INTERVALS_TO_DELTA.keys()
-        )
-        st.write(f"Selected interval: {selected_candle_interval}")
+        # FIXME deleted multi interval
+        # selected_candle_interval = st.selectbox(
+        #     "Select the interval", INTERVALS_TO_DELTA.keys()
+        # )
+        # st.write(f"Selected interval: {selected_candle_interval}")
         if selected_signal_data:
             with st.spinner("Loading candles from Binance..."):
                 try:
                     asyncio.run(
-                        process_signal_row(
-                            selected_signal_data, interval=selected_candle_interval
-                        )
+                        process_signal_row(selected_signal_data, interval=INTERVAL)
                     )
                     st.success("Candles successfully loaded!")
                     show_plot(
                         signal_data=selected_signal_data,
                         signal_id=selected_signal_id,
-                        interval=selected_candle_interval,
+                        interval=INTERVAL,
                     )
                 except Exception as e:
                     st.error(f"Error while loading candles: {e}")
@@ -419,7 +437,7 @@ def main():
         authentication_page()
 
 
-def show_plot(signal_data: Signal, signal_id: int, interval: str):
+def show_plot(signal_data: Signal, signal_id: int, interval: str = INTERVAL):
     try:
         candles = list()
         with psycopg.connect(**DB_CONFIG) as conn:

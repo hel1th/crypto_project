@@ -1,6 +1,5 @@
 from typing import Any, Dict
 from app.types import Db_config
-
 import os
 from dotenv import load_dotenv
 from datetime import timedelta, timezone
@@ -40,9 +39,9 @@ os.makedirs(SESSIONS_DIR, exist_ok=True)
 TG_SESSION_PATH = os.path.join(SESSIONS_DIR, TG_SESSION_NAME)
 
 # Available
-INTERVALS_TO_DELTA: Dict[str, timedelta] = {
-    "1h": timedelta(hours=1),
-    "30m": timedelta(minutes=30),
-    "5m": timedelta(minutes=5),
-    "1m": timedelta(minutes=1),
-}
+# INTERVALS_TO_DELTA: Dict[str, timedelta] = {
+#     "1h": timedelta(hours=1),
+#     "30m": timedelta(minutes=30),
+#     "5m": timedelta(minutes=5),
+#     "1m": timedelta(minutes=1),
+# }
