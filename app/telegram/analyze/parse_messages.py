@@ -5,7 +5,7 @@ from gigachat.models import Chat, Messages, MessagesRole
 import gigachat
 import json
 import logging
-import psycopg2
+import psycopg
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def llm_parse_and_insert(message_id, channel_id, text, signal_time):
         return
 
     try:
-        with psycopg2.connect(**DB_CONFIG) as conn:
+        with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
                 # Вставка в trading_signals с JSONB полями
                 cur.execute(

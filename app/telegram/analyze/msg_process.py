@@ -6,7 +6,7 @@ import psycopg
 logger = logging.getLogger(__name__)
 
 
-def get_all_msg() -> tuple:
+def get_all_msg():
     try:
         with psycopg.connect(**DB_CONFIG) as conn:
             with conn.cursor() as cur:
