@@ -1,4 +1,5 @@
 ### Анализ криптовалютных сигналов из Telegram
+### Порт из GitLab https://gitlab.mai.ru/antygin/crypto_project
 
 ---
 
